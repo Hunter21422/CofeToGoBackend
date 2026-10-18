@@ -1,4 +1,8 @@
+{
+    email hunter21422@yandex.ru
+}
+
 {$API_DOMAIN} {
     encode gzip
-    reverse_proxy api:8000
+    reverse_proxy 127.0.0.1:8000
 }

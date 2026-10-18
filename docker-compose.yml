@@ -29,6 +29,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://coffee:${POSTGRES_PASSWORD}@db:5432/coffee
       REDIS_URL: redis://redis:6379/0
     command: sh -c "python -m app.db.init && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips '*'"
+    ports:
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -49,9 +51,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    network_mode: host
     environment:
       API_DOMAIN: ${API_DOMAIN}
     volumes:
