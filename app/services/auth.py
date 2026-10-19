@@ -134,7 +134,9 @@ class AuthService:
         if user is None:
             user = await self._new_user(tg_id=int(tg["id"]), **fields)
         else:
-            await self.users.update(user, **{k: v for k, v in fields.items() if v})
+            keep_name = bool(user.first_name) and user.first_name != "Гость"
+            changes = {k: v for k, v in fields.items() if v and not (keep_name and k in ("first_name", "last_name"))}
+            await self.users.update(user, **changes)
         user.last_seen_at = datetime.now(timezone.utc)
         await self._ensure_owner(user)
         return user
