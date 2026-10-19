@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # Вход на сайте по SMS (sms.ru). Пусто + dev_mode → код пишется в лог вместо отправки
     sms_ru_api_id: str = ""
+    sms_ru_mode: str = "call"
     sms_code_ttl_sec: int = 300
     sms_resend_sec: int = 60
     sms_max_attempts: int = 5

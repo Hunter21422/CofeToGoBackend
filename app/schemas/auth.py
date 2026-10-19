@@ -20,6 +20,7 @@ class SmsSendIn(BaseModel):
 class SmsSendOut(BaseModel):
     expires_in: int  # сек, сколько живёт код
     resend_in: int  # сек, когда можно запросить снова
+    channel: Literal["call", "sms", "log"] = "sms"
 
 
 class SmsVerifyIn(BaseModel):

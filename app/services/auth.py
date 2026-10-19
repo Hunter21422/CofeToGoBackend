@@ -27,29 +27,62 @@ class Unauthorized(ServiceError):
 
 
 class SmsSender(Protocol):
+    channel: str
+
     async def send(self, phone: str, text: str) -> None: ...
+
+    async def send_code(self, phone: str, ip: str | None) -> str: ...
+
+
+def _new_code() -> str:
+    return f"{secrets.randbelow(10_000):04d}"
 
 
 class SmsRuSender:
-    def __init__(self, api_id: str):
+    def __init__(self, api_id: str, mode: str = "call"):
         self.api_id = api_id
+        self.channel = "call" if mode == "call" else "sms"
 
     async def send(self, phone: str, text: str) -> None:
         params = {"api_id": self.api_id, "to": phone.lstrip("+"), "msg": text, "json": 1}
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get("https://sms.ru/sms/send", params=params)
-        if r.status_code != 200 or r.json().get("status") != "OK":
-            raise ServiceError("Не получилось отправить SMS, попробуйте позже")
+        data = r.json() if r.status_code == 200 else {}
+        item = (data.get("sms") or {}).get(phone.lstrip("+"), {})
+        if data.get("status") != "OK" or item.get("status") != "OK":
+            log.warning("sms.ru: %s", data)
+            raise ServiceError(item.get("status_text") or "Не получилось отправить SMS, попробуйте позже")
+
+    async def send_code(self, phone: str, ip: str | None) -> str:
+        if self.channel == "sms":
+            code = _new_code()
+            await self.send(phone, f"{code} — код для входа в «{get_settings().app_name}»")
+            return code
+        params = {"api_id": self.api_id, "phone": phone.lstrip("+"), "ip": ip or "-1", "json": 1}
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get("https://sms.ru/code/call", params=params)
+        data = r.json() if r.status_code == 200 else {}
+        if data.get("status") != "OK" or not data.get("code"):
+            log.warning("sms.ru call: %s", data)
+            raise ServiceError("Не получилось позвонить, попробуйте через минуту")
+        return str(data["code"])[-4:]
 
 
 class LogSender:
+    channel = "log"
+
     async def send(self, phone: str, text: str) -> None:
         log.warning("SMS to %s: %s", phone, text)
+
+    async def send_code(self, phone: str, ip: str | None) -> str:
+        code = _new_code()
+        log.warning("SMS to %s: код для входа %s", phone, code)
+        return code
 
 
 def default_sender() -> SmsSender:
     s = get_settings()
-    return SmsRuSender(s.sms_ru_api_id) if s.sms_ru_api_id else LogSender()
+    return SmsRuSender(s.sms_ru_api_id, s.sms_ru_mode) if s.sms_ru_api_id else LogSender()
 
 
 class AuthService:
@@ -146,12 +179,15 @@ class AuthService:
             if per_ip > 20:
                 raise TooMany("Слишком много запросов, попробуйте позже")
 
-        code = f"{secrets.randbelow(10_000):04d}"
+        await self.redis.set(f"sms:wait:{phone}", 1, ex=s.sms_resend_sec)
+        try:
+            code = await self.sms.send_code(phone, ip)
+        except Exception:
+            await self.redis.delete(f"sms:wait:{phone}")
+            raise
         await self.redis.hset(f"sms:code:{phone}", mapping={"hash": sha256(f"{phone}:{code}"), "attempts": 0})
         await self.redis.expire(f"sms:code:{phone}", s.sms_code_ttl_sec)
-        await self.redis.set(f"sms:wait:{phone}", 1, ex=s.sms_resend_sec)
-        await self.sms.send(phone, f"{code} — код для входа в «{s.app_name}»")
-        return SmsSendOut(expires_in=s.sms_code_ttl_sec, resend_in=s.sms_resend_sec)
+        return SmsSendOut(expires_in=s.sms_code_ttl_sec, resend_in=s.sms_resend_sec, channel=self.sms.channel)
 
     async def sms_verify(self, phone: str, code: str, user_agent: str | None = None) -> TokenPair:
         key = f"sms:code:{phone}"
