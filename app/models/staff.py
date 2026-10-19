@@ -45,6 +45,10 @@ class Staff(IdMixin, TimestampMixin, Base):
         return bool(self.user and self.user.phone)
 
     @property
+    def phone(self) -> str | None:
+        return self.user.phone if self.user else None
+
+    @property
     def pin_set(self) -> bool:
         return self.pin_hash is not None
 

@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import StaffRole
 
-from .common import BaseSchema
+from .common import BaseSchema, Phone
 from .location import LocationShort
 from .user import UserRead, UserShort
 
@@ -20,21 +20,31 @@ class StaffRead(StaffShort):
     is_active: bool
     pin_set: bool
     phone_linked: bool = False
+    phone: str | None = None
     pin_locked_until: datetime | None
     last_login_at: datetime | None
     created_at: datetime
 
 
 class StaffCreate(BaseModel):
-    tg_id: int
+    tg_id: int | None = None
+    phone: Phone | None = None
+    first_name: str | None = Field(None, max_length=64)
     role: StaffRole = StaffRole.BARISTA
     location_id: int | None = None
+
+    @model_validator(mode="after")
+    def tg_or_phone(self):
+        if self.tg_id is None and self.phone is None:
+            raise ValueError("Укажите Telegram ID или телефон сотрудника")
+        return self
 
 
 class StaffUpdate(BaseModel):
     role: StaffRole | None = None
     location_id: int | None = None
     is_active: bool | None = None
+    phone: Phone | None = None
 
 
 class AdminMe(BaseModel):

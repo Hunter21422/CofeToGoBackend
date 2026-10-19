@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_secret, verify_secret
-from app.models import Location, Staff
+from app.models import Location, Staff, User
 from app.models.enums import StaffRole
 from app.repositories import LocationRepository, RefreshTokenRepository, StaffRepository, UserRepository
 from app.schemas.auth import PinVerifyOut, TokenPair
@@ -77,10 +78,29 @@ class StaffService:
     async def list_team(self, location_id: int | None = None) -> list[Staff]:
         return await self.staff.list_team(location_id)
 
+    async def _set_phone(self, user: User, phone: str) -> None:
+        if user.phone == phone:
+            return
+        other = await self.users.by_phone(phone)
+        if other is not None and other.id != user.id:
+            if await self.staff.by_user_id(other.id) is not None:
+                raise Conflict("Этот номер уже у другого сотрудника")
+            await self.users.update(other, phone=None)
+        await self.users.update(user, phone=phone)
+
     async def add_staff(self, owner: Staff, data: StaffCreate) -> Staff:
-        user = await self.users.by_tg_id(data.tg_id)
-        if user is None:
-            raise NotFound("Человек ещё не открывал бота. Попросите его зайти в бота и нажать «Старт»")
+        if data.tg_id is not None:
+            user = await self.users.by_tg_id(data.tg_id)
+            if user is None:
+                raise NotFound("Человек ещё не открывал бота. Попросите его зайти в бота и нажать «Старт» или добавьте по телефону")
+            if data.phone:
+                await self._set_phone(user, data.phone)
+        else:
+            user = await self.users.by_phone(data.phone)
+            if user is None:
+                user = await self.users.create(phone=data.phone, first_name=(data.first_name or "").strip() or "Сотрудник", referral_code=secrets.token_hex(4).upper())
+        if data.first_name and data.first_name.strip() and user.first_name in ("", "Гость", "Сотрудник"):
+            await self.users.update(user, first_name=data.first_name.strip())
         if await self.staff.by_user_id(user.id) is not None:
             raise Conflict("Этот человек уже в команде")
         if data.location_id is not None and await self.locations.get(data.location_id) is None:
@@ -91,6 +111,12 @@ class StaffService:
     async def update_staff(self, owner: Staff, staff_id: int, data: StaffUpdate) -> Staff:
         staff = await self.get_staff(staff_id)
         fields = data.model_dump(exclude_unset=True)
+        if "phone" in fields:
+            phone = fields.pop("phone")
+            if phone:
+                await self._set_phone(staff.user, phone)
+            else:
+                await self.users.update(staff.user, phone=None)
         demoting = staff.role == StaffRole.OWNER and (fields.get("role", StaffRole.OWNER) != StaffRole.OWNER or fields.get("is_active") is False)
         if demoting:
             owners = [s for s in await self.staff.list_team() if s.role == StaffRole.OWNER and s.is_active]
