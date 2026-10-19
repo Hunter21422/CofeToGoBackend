@@ -26,10 +26,10 @@ class NotifyService:
     def _order_url(self, order: Order) -> str:
         return f"{self.config.webapp_url.rstrip('/')}/#/orders/{order.id}"
 
-    def _add(self, user_id: int, type: NotificationType, text: str, order_id: int | None = None, button_text: str | None = None, button_url: str | None = None) -> None:
+    def _add(self, user_id: int, type: NotificationType, text: str, order_id: int | None = None, button_text: str | None = None, button_url: str | None = None, sms: str | None = None) -> None:
         self.session.add(NotificationLog(
             user_id=user_id, type=type, status=NotificationStatus.PENDING, order_id=order_id,
-            payload={"text": text, "button_text": button_text, "button_url": button_url, "web_app": True},
+            payload={"text": text, "button_text": button_text, "button_url": button_url, "web_app": True, "sms": sms},
         ))
 
     async def _texts(self):
@@ -39,9 +39,10 @@ class NotifyService:
         texts = await self._texts()
         template = {"accepted": texts.order_accepted, "ready": texts.order_ready, "cancelled": texts.order_cancelled}[kind]
         text = template.format(number=order.display_number)
+        sms = f"{self.config.app_name}: {text}" if kind in ("ready", "cancelled") else None
         if reason:
             text += f"\nПричина: {reason}"
-        self._add(order.user_id, NotificationType.ORDER_STATUS, text, order.id, "Открыть заказ", self._order_url(order))
+        self._add(order.user_id, NotificationType.ORDER_STATUS, text, order.id, "Открыть заказ", self._order_url(order), sms=sms)
 
     async def new_order(self, order: Order) -> None:
         lines = []
@@ -66,4 +67,4 @@ class NotifyService:
     async def gift_unlocked(self, user_id: int) -> None:
         texts = await self._texts()
         url = f"{self.config.webapp_url.rstrip('/')}/#/card"
-        self._add(user_id, NotificationType.LOYALTY, texts.gift_unlocked, None, "Моя карта", url)
+        self._add(user_id, NotificationType.LOYALTY, texts.gift_unlocked, None, "Моя карта", url, sms=f"{self.config.app_name}: {texts.gift_unlocked}")

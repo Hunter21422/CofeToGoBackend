@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.models import Banner, Broadcast
 from app.models.enums import BroadcastStatus
 from app.repositories import BannerRepository, BroadcastRepository
@@ -45,6 +46,8 @@ class MarketingService:
         return await self.broadcasts.list_all(limit, offset)
     async def create_broadcast(self, data: BroadcastCreate, created_by_id: int) -> Broadcast:
         fields = data.model_dump()
+        if fields.get("button_text") and not fields.get("button_url"):
+            fields["button_url"] = get_settings().webapp_url
         status = BroadcastStatus.SCHEDULED if data.scheduled_at else BroadcastStatus.DRAFT
         if data.scheduled_at and data.scheduled_at <= datetime.now(timezone.utc):
             raise ServiceError("Время отправки уже прошло")

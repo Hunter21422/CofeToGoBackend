@@ -19,6 +19,8 @@ class Settings(BaseSettings):
 
     bot_token: str = ""
     bot_username: str = "kofe_s_toboy_bot"
+    bot_proxy: str = ""
+    bot_api_url: str = ""
     webapp_url: str = "https://localhost"
     # Секретный путь админки, должен совпадать с VITE_ADMIN_PATH во фронте. Ссылки из бота: {webapp_url}/{admin_path}/
     admin_path: str = "staff-change-me"

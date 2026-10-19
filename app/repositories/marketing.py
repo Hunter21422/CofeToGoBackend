@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import extract, func, or_, select
+from sqlalchemy import exists, extract, func, or_, select
 
-from app.models import Banner, Broadcast, LoyaltyAccount, Order, User
+from app.models import Banner, Broadcast, LoyaltyAccount, Order, PushSubscription, User
 from app.models.enums import BroadcastStatus, OrderStatus
 
 from .base import BaseRepository
@@ -71,7 +71,7 @@ class BroadcastRepository(BaseRepository[Broadcast]):
             select(User.id, User.tg_id)
             .outerjoin(orders, orders.c.user_id == User.id)
             .outerjoin(LoyaltyAccount, LoyaltyAccount.user_id == User.id)
-            .where(User.tg_id.is_not(None), User.is_blocked.is_(False))
+            .where(or_(User.tg_id.is_not(None), exists().where(PushSubscription.user_id == User.id)), User.is_blocked.is_(False))
         )
         now = datetime.now(timezone.utc)
         if segment.get("only_marketing_consent", True):

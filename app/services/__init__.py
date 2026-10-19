@@ -11,6 +11,7 @@ from .modifier import ModifierService
 from .order import OrderService
 from .payment import PaymentService, YooKassaGateway
 from .promo import PromoService
+from .push import PushService
 from .review import ReviewService
 from .settings import SettingsService
 from .staff import StaffService
@@ -34,6 +35,7 @@ __all__ = [
     "OrderService",
     "PaymentService",
     "PromoService",
+    "PushService",
     "ReviewService",
     "ServiceError",
     "SettingsService",

@@ -81,8 +81,8 @@ class BroadcastCreate(BaseModel):
 
     @model_validator(mode="after")
     def button_pair(self):
-        if bool(self.button_text) != bool(self.button_url):
-            raise ValueError("button_text и button_url задаются вместе")
+        if self.button_url and not self.button_text:
+            raise ValueError("Укажите текст кнопки")
         return self
 
 

@@ -8,6 +8,7 @@ from .marketing import Banner, Broadcast
 from .menu import Category, Product, ProductVariant
 from .modifier import Modifier, ModifierGroup, ProductModifierGroup
 from .notification import NotificationLog
+from .push import PushSubscription
 from .order import Order, OrderItem, OrderStatusHistory
 from .payment import Payment, Refund
 from .profile import Favorite, Review
@@ -32,6 +33,7 @@ __all__ = [
     "Modifier",
     "ModifierGroup",
     "NotificationLog",
+    "PushSubscription",
     "Order",
     "OrderItem",
     "OrderStatusHistory",

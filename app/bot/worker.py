@@ -1,4 +1,5 @@
 import asyncio
+import re
 import logging
 from datetime import datetime, timezone
 
@@ -10,7 +11,9 @@ from app.db.session import SessionLocal
 from app.models import Broadcast, NotificationLog, User
 from app.models.enums import BroadcastStatus, NotificationStatus, NotificationType
 from app.repositories import BroadcastRepository, NotificationLogRepository
-from app.services import OrderService, StockService
+from app.core.config import settings
+from app.services import OrderService, PushService, StockService
+from app.services.auth import LogSender, default_sender
 
 from .keyboards import button, keyboard
 
@@ -28,16 +31,43 @@ async def deliver(bot: Bot, n: NotificationLog, user: User) -> int:
     return msg.message_id
 
 
+async def send_sms(user: User, text: str | None) -> str | None:
+    if not text:
+        return "Без Telegram, по SMS не отправляем"
+    if not user.phone:
+        return "У гостя нет Telegram и телефона"
+    sender = default_sender()
+    if isinstance(sender, LogSender):
+        return "SMS не настроены (нет SMS_RU_API_ID)"
+    text = re.sub(r"[^\u0000-\uFFFF]", "", text).replace("  ", " ").strip()
+    try:
+        await sender.send(user.phone, text)
+    except Exception as e:
+        return f"SMS: {e}"[:500]
+    return None
+
+
+async def send_web(session, n: NotificationLog, user: User, sms_text: str | None) -> str | None:
+    p = n.payload or {}
+    body = re.sub(r"<[^>]+>", "", p.get("text") or "").strip()
+    if await PushService(session).send(user.id, settings.app_name, body, p.get("button_url")):
+        return None
+    return await send_sms(user, sms_text)
+
+
 async def send_pending(bot: Bot) -> int:
     async with SessionLocal() as session:
         items = await NotificationLogRepository(session).pending(25)
         for n in items:
             user = await session.get(User, n.user_id)
             error = None
-            if user is None or not user.tg_id:
-                error = "У гостя нет Telegram"
+            sms_text = (n.payload or {}).get("sms")
+            if user is None:
+                error = "Гость не найден"
             elif n.type == NotificationType.ORDER_STATUS and not user.notifications_enabled:
                 error = "Уведомления выключены"
+            elif not user.tg_id:
+                error = await send_web(session, n, user, sms_text)
             else:
                 try:
                     n.tg_message_id = await deliver(bot, n, user)
@@ -65,7 +95,7 @@ async def start_broadcasts() -> None:
         repo = BroadcastRepository(session)
         for b in await repo.due():
             rows = (await session.execute(repo.segment_stmt(b.segment or {}))).all()
-            payload = {"text": b.text, "image_url": b.image_url, "button_text": b.button_text, "button_url": b.button_url, "web_app": False}
+            payload = {"text": b.text, "image_url": b.image_url, "button_text": b.button_text, "button_url": b.button_url, "web_app": True}
             for user_id, _ in rows:
                 session.add(NotificationLog(user_id=user_id, type=NotificationType.BROADCAST, status=NotificationStatus.PENDING, broadcast_id=b.id, payload=payload))
             b.status = BroadcastStatus.SENDING

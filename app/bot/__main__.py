@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.types import BotCommand, MenuButtonWebApp, WebAppInfo
 
 from app.core.config import settings
@@ -24,7 +26,12 @@ async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if not settings.bot_token:
         raise SystemExit("Укажите BOT_TOKEN в .env")
-    bot = Bot(settings.bot_token)
+    session = None
+    if settings.bot_proxy or settings.bot_api_url:
+        session = AiohttpSession(proxy=settings.bot_proxy or None)
+        if settings.bot_api_url:
+            session.api = TelegramAPIServer.from_base(settings.bot_api_url.rstrip("/"))
+    bot = Bot(settings.bot_token, session=session)
     dp = Dispatcher()
     dp.include_router(router)
     await setup(bot)
