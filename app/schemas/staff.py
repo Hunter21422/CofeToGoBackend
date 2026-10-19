@@ -19,6 +19,7 @@ class StaffRead(StaffShort):
     location_id: int | None
     is_active: bool
     pin_set: bool
+    phone_linked: bool = False
     pin_locked_until: datetime | None
     last_login_at: datetime | None
     created_at: datetime

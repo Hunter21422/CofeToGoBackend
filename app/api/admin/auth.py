@@ -1,7 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
-from app.api.deps import RedisDep, SessionDep, StaffNoPin
-from app.schemas.auth import PinSetupIn, PinVerifyIn, PinVerifyOut, TokenPair
+from app.api.deps import RedisDep, SessionDep, StaffNoPin, client_ip
+from app.schemas.auth import PinSetupIn, PinVerifyIn, PinVerifyOut, SmsSendIn, SmsSendOut, TokenPair
 from app.schemas.staff import AdminMe
 from app.services import AuthService, StaffService
 router=APIRouter(prefix="/admin", tags=["admin: вход"])
@@ -21,3 +21,6 @@ async def lock(session: SessionDep, ctx: StaffNoPin):
 @router.post("/auth/logout", status_code=204)
 async def logout(session: SessionDep, redis: RedisDep, ctx: StaffNoPin):
     await AuthService(session, redis).logout(ctx.payload["sid"])
+@router.post("/auth/phone/send", response_model=SmsSendOut)
+async def staff_phone_send(data: SmsSendIn, request: Request, session: SessionDep, redis: RedisDep):
+    return await AuthService(session, redis).staff_phone_send(data.phone, client_ip(request))

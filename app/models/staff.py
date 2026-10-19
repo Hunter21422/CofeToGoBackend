@@ -41,6 +41,10 @@ class Staff(IdMixin, TimestampMixin, Base):
     location: Mapped[Location | None] = relationship(back_populates="staff")
 
     @property
+    def phone_linked(self) -> bool:
+        return bool(self.user and self.user.phone)
+
+    @property
     def pin_set(self) -> bool:
         return self.pin_hash is not None
 

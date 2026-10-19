@@ -191,6 +191,13 @@ class AuthService:
         await self.redis.expire(f"sms:code:{phone}", s.sms_code_ttl_sec)
         return SmsSendOut(expires_in=s.sms_code_ttl_sec, resend_in=s.sms_resend_sec, channel=self.sms.channel)
 
+    async def staff_phone_send(self, phone: str, ip: str | None = None) -> SmsSendOut:
+        user = await self.users.by_phone(phone)
+        staff = await self.staff.by_user_id(user.id) if user else None
+        if staff is None or not staff.is_active:
+            raise ServiceError("Этот номер не привязан к сотруднику. Привяжите телефон в профиле приложения кофейни")
+        return await self.sms_send(phone, ip)
+
     async def sms_verify(self, phone: str, code: str, user_agent: str | None = None) -> TokenPair:
         key = f"sms:code:{phone}"
         saved = await self.redis.hgetall(key)
