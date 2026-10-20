@@ -45,9 +45,10 @@ def user_agent(request: Request) -> str | None:
 
 
 def client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    for name in ("x-vercel-forwarded-for", "x-real-ip", "x-forwarded-for"):
+        value = request.headers.get(name)
+        if value:
+            return value.split(",")[0].strip()
     return request.client.host if request.client else None
 
 

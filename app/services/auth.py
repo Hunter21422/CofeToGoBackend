@@ -63,8 +63,8 @@ class SmsRuSender:
             r = await client.get("https://sms.ru/code/call", params=params)
         data = r.json() if r.status_code == 200 else {}
         if data.get("status") != "OK" or not data.get("code"):
-            log.warning("sms.ru call: %s", data)
-            raise ServiceError("Не получилось позвонить, попробуйте через минуту")
+            log.warning("sms.ru call: %s ip=%s", data, ip)
+            raise ServiceError(data.get("status_text") or "Не получилось позвонить, попробуйте через минуту")
         return str(data["code"])[-4:]
 
 
@@ -187,7 +187,11 @@ class AuthService:
         except Exception:
             await self.redis.delete(f"sms:wait:{phone}")
             raise
-        await self.redis.hset(f"sms:code:{phone}", mapping={"hash": sha256(f"{phone}:{code}"), "attempts": 0})
+        prev = await self.redis.hget(f"sms:code:{phone}", "hash")
+        mapping = {"hash": sha256(f"{phone}:{code}"), "attempts": 0}
+        if prev:
+            mapping["prev"] = prev.decode() if isinstance(prev, bytes) else prev
+        await self.redis.hset(f"sms:code:{phone}", mapping=mapping)
         await self.redis.expire(f"sms:code:{phone}", s.sms_code_ttl_sec)
         return SmsSendOut(expires_in=s.sms_code_ttl_sec, resend_in=s.sms_resend_sec, channel=self.sms.channel)
 
@@ -208,7 +212,11 @@ class AuthService:
         if attempts > self.settings.sms_max_attempts:
             await self.redis.delete(key)
             raise TooMany("Слишком много попыток, запросите новый код")
-        if not secrets.compare_digest(saved["hash"], sha256(f"{phone}:{code}")):
+        given = sha256(f"{phone}:{code}")
+        ok = secrets.compare_digest(saved["hash"], given)
+        if not ok and saved.get("prev"):
+            ok = secrets.compare_digest(saved["prev"], given)
+        if not ok:
             raise ServiceError("Неверный код", code="bad_code")
         await self.redis.delete(key)
 
