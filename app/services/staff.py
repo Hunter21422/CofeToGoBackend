@@ -117,6 +117,17 @@ class StaffService:
                 await self._set_phone(staff.user, phone)
             else:
                 await self.users.update(staff.user, phone=None)
+        names = {k: fields.pop(k) for k in ("first_name", "last_name") if k in fields}
+        if names.get("first_name") is not None:
+            names["first_name"] = names["first_name"].strip()
+            if not names["first_name"]:
+                raise ServiceError("Имя не может быть пустым")
+        elif "first_name" in names:
+            names.pop("first_name")
+        if "last_name" in names:
+            names["last_name"] = (names["last_name"] or "").strip() or None
+        if names:
+            await self.users.update(staff.user, **names)
         demoting = staff.role == StaffRole.OWNER and (fields.get("role", StaffRole.OWNER) != StaffRole.OWNER or fields.get("is_active") is False)
         if demoting:
             owners = [s for s in await self.staff.list_team() if s.role == StaffRole.OWNER and s.is_active]

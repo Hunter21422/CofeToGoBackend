@@ -48,7 +48,13 @@ class StatsService:
             TopProductOut(product_id=r.product_id, name=r.name, quantity=r.quantity, revenue=r.revenue)
             for r in await self.orders.top_products(f.location_id, f.date_from, f.date_to)
         ]
-        return DashboardOut(kpi=kpi, series=series, top_products=top)
+        return DashboardOut(
+            kpi=kpi,
+            series=series,
+            top_products=top,
+            heatmap=await self.heatmap(f),
+            payment_methods=await self.orders.payment_methods(f.location_id, f.date_from, f.date_to),
+        )
     async def heatmap(self, f: StatsFilter) -> list[HourHeatmapCell]:
         rows = await self.orders.heatmap(f.location_id, f.date_from, f.date_to)
         return [HourHeatmapCell(weekday=int(r.weekday), hour=int(r.hour), orders=r.orders) for r in rows]

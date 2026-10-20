@@ -1,3 +1,5 @@
+from zoneinfo import ZoneInfo
+
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -23,6 +25,31 @@ async def upsert(message: Message, session):
     return user
 
 
+MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+
+
+def day_month(dt) -> str:
+    local = dt.astimezone(ZoneInfo("Europe/Moscow"))
+    return f"{local.day} {MONTHS[local.month - 1]}"
+
+
+def expire_rules(card) -> str:
+    lines = []
+    if card.stamps_expire_days:
+        line = f"⏳ Штампы сгорают, если не заказывать {card.stamps_expire_days} дн."
+        if card.stamps_expire_at:
+            line += f" Ваши сгорят {day_month(card.stamps_expire_at)}."
+        lines.append(line)
+    if card.gift_expire_days:
+        line = f"🎁 Подарок сгорает, если не заказывать {card.gift_expire_days} дн."
+        if card.gifts_expire_at:
+            line += f" Ваш сгорит {day_month(card.gifts_expire_at)}."
+        lines.append(line)
+    if lines:
+        lines.append("Любой заказ продлевает срок.")
+    return "\n".join(lines)
+
+
 def stamps_line(stamps: int, per_gift: int) -> str:
     return "☕" * stamps + "◯" * max(per_gift - stamps, 0)
 
@@ -34,6 +61,9 @@ async def send_card(message: Message, session, user_id: int) -> None:
         text += f"\n🎁 Подарков на карте: {card.gifts_available}. Скажите бариста, что хотите напиток в подарок."
     else:
         text += f"\nДо подарка осталось: {card.stamps_left}"
+    rules = expire_rules(card)
+    if rules:
+        text += f"\n\n{rules}"
     await message.answer(text, reply_markup=keyboard(button("Показать код на кассе", app_url("/card"))))
 
 

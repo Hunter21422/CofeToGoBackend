@@ -12,9 +12,12 @@ from app.repositories import LoyaltyRepository, SettingRepository
 from app.schemas.loyalty import LoyaltyRead
 
 from .notify import NotifyService
-from .errors import NotFound, ServiceError
+from .errors import Conflict, Forbidden, NotFound, ServiceError
 
 CODE_TTL_SEC = 300
+VISIT_TTL_SEC = 600
+MAX_STAMPS_PER_VISIT = 5
+MAX_CASH_STAMPS_PER_DAY = 10
 
 
 class LoyaltyService:
@@ -29,9 +32,23 @@ class LoyaltyService:
     async def account(self, user_id: int) -> LoyaltyAccount:
         return await self.loyalty.get_or_create(user_id)
 
+    async def expire_days(self) -> tuple[int | None, int | None]:
+        stamps = await self.settings.get_value("loyalty.stamps_expire_days", default=None)
+        gifts = await self.settings.get_value("loyalty.gift_expire_days", default=None)
+        return (int(stamps) if stamps else None), (int(gifts) if gifts else None)
+
     async def read(self, user_id: int) -> LoyaltyRead:
-        loyalty = LoyaltyRead.model_validate(await self.account(user_id))
+        account = await self.account(user_id)
+        loyalty = LoyaltyRead.model_validate(account)
         loyalty.stamps_per_gift = await self.stamps_per_gift()
+        stamps_days, gift_days = await self.expire_days()
+        loyalty.stamps_expire_days, loyalty.gift_expire_days = stamps_days, gift_days
+        since = account.last_activity_at or account.created_at
+        if since is not None:
+            if stamps_days and account.stamps > 0:
+                loyalty.stamps_expire_at = since + timedelta(days=stamps_days)
+            if gift_days and account.gifts_available > 0:
+                loyalty.gifts_expire_at = since + timedelta(days=gift_days)
         return loyalty
 
     async def add_stamps(
@@ -158,6 +175,50 @@ class LoyaltyService:
         await redis.delete(f"loyalty:user_code:{user_id}")
         return user_id
 
+    async def open_visit(self, user_id: int, staff_id: int, location_id: int) -> str:
+        redis = self._need_redis()
+        token = secrets.token_urlsafe(16)
+        await redis.set(f"loyalty:visit:{token}", f"{user_id}:{staff_id}:{location_id}", ex=VISIT_TTL_SEC)
+        return token
+
+    async def _check_visit(self, token: str, user_id: int, staff_id: int, location_id: int) -> None:
+        raw = await self._need_redis().get(f"loyalty:visit:{token}")
+        if raw is None:
+            raise ServiceError("Код гостя устарел. Попросите его обновить карту и назвать новый код", code="visit_expired")
+        raw = raw.decode() if isinstance(raw, bytes) else raw
+        if raw != f"{user_id}:{staff_id}:{location_id}":
+            raise Forbidden("Этот код подтверждали не вы или на другой точке", code="visit_mismatch")
+
+    async def _use_visit(self, token: str, action: str) -> None:
+        if not await self._need_redis().set(f"loyalty:visit:{token}:{action}", 1, ex=VISIT_TTL_SEC, nx=True):
+            text = "По этому коду штампы уже поставлены" if action == "stamp" else "По этому коду подарок уже выдан"
+            raise Conflict(f"{text}. Для следующей покупки нужен новый код гостя", code="visit_used")
+
+    async def stamp_visit(self, token: str, user_id: int, count: int, staff_id: int, location_id: int) -> LoyaltyAccount:
+        if count > MAX_STAMPS_PER_VISIT:
+            raise ServiceError(f"За одну покупку — не больше {MAX_STAMPS_PER_VISIT} штампов")
+        await self._check_visit(token, user_id, staff_id, location_id)
+        redis = self._need_redis()
+        day_key = f"loyalty:cash:{user_id}:{datetime.now(timezone.utc).date().isoformat()}"
+        total = await redis.incrby(day_key, count)
+        await redis.expire(day_key, 2 * 86400)
+        if total > MAX_CASH_STAMPS_PER_DAY:
+            await redis.decrby(day_key, count)
+            raise Conflict(f"Гостю сегодня уже поставили {total - count} штампов на кассе. Больше {MAX_CASH_STAMPS_PER_DAY} в день нельзя — если покупка правда большая, обратитесь к менеджеру", code="daily_limit")
+        try:
+            await self._use_visit(token, "stamp")
+        except Conflict:
+            await redis.decrby(day_key, count)
+            raise
+        return await self.add_stamps(user_id, count, staff_id=staff_id, location_id=location_id, reason="Касса")
+
+    async def redeem_visit(self, token: str, user_id: int, staff_id: int, location_id: int) -> LoyaltyAccount:
+        await self._check_visit(token, user_id, staff_id, location_id)
+        if (await self.account(user_id)).gifts_available < 1:
+            raise ServiceError("Подарков на карте нет", code="no_gift")
+        await self._use_visit(token, "redeem")
+        return await self.redeem_gift(user_id, staff_id=staff_id, location_id=location_id)
+
     async def accept_code(self, code: str, staff_id: int, location_id: int) -> LoyaltyAccount:
         redis = self._need_redis()
         code = code.strip()
@@ -171,14 +232,19 @@ class LoyaltyService:
         return await self.add_stamps(user_id, 1, staff_id=staff_id, location_id=location_id, reason="Код на кассе")
 
     async def expire_old(self) -> int:
-        days = await self.settings.get_value("loyalty.stamps_expire_days", default=None)
-        if not days:
-            return 0
-        border = datetime.now(timezone.utc) - timedelta(days=int(days))
+        stamps_days, gift_days = await self.expire_days()
+        now = datetime.now(timezone.utc)
         count = 0
-        for account in await self.loyalty.stale(border):
-            burned = account.stamps
-            account.stamps = 0
-            await self.loyalty.add_tx(account, LoyaltyTxType.EXPIRED, stamps_delta=-burned, reason="Штампы сгорели")
-            count += 1
+        if stamps_days:
+            for account in await self.loyalty.stale(now - timedelta(days=stamps_days)):
+                burned = account.stamps
+                account.stamps = 0
+                await self.loyalty.add_tx(account, LoyaltyTxType.EXPIRED, stamps_delta=-burned, reason=f"Штампы сгорели: нет заказов {stamps_days} дн.")
+                count += 1
+        if gift_days:
+            for account in await self.loyalty.stale(now - timedelta(days=gift_days), gifts=True):
+                burned = account.gifts_available
+                account.gifts_available = 0
+                await self.loyalty.add_tx(account, LoyaltyTxType.EXPIRED, gifts_delta=-burned, reason=f"Подарок сгорел: нет заказов {gift_days} дн.")
+                count += 1
         return count

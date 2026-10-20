@@ -16,6 +16,10 @@ class LoyaltyRead(BaseSchema):
     lifetime_stamps: int
     lifetime_gifts: int
     tier: LoyaltyTier
+    stamps_expire_days: int | None = None
+    gift_expire_days: int | None = None
+    stamps_expire_at: datetime | None = None
+    gifts_expire_at: datetime | None = None
 
     @computed_field
     @property
@@ -70,17 +74,20 @@ class ScanResultOut(BaseModel):
     phone: str | None
     loyalty: LoyaltyRead
     last_orders: list[OrderShort]
+    visit: str | None = None  # одноразовый пропуск на штампы и подарок, живёт 10 минут
 
 
 class StampAddIn(BaseModel):
     user_id: int
     location_id: int
-    count: int = Field(1, ge=1, le=10)
+    count: int = Field(1, ge=1, le=5)
+    visit: str = Field(min_length=8, max_length=64)
 
 
 class GiftRedeemIn(BaseModel):
     user_id: int
     location_id: int
+    visit: str = Field(min_length=8, max_length=64)
 
 
 class LoyaltyAdjustIn(BaseModel):

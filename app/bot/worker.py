@@ -12,7 +12,7 @@ from app.models import Broadcast, NotificationLog, User
 from app.models.enums import BroadcastStatus, NotificationStatus, NotificationType
 from app.repositories import BroadcastRepository, NotificationLogRepository
 from app.core.config import settings
-from app.services import OrderService, PushService, StockService
+from app.services import LoyaltyService, OrderService, PushService, StockService
 from app.services.auth import LogSender, default_sender
 
 from .keyboards import button, keyboard
@@ -124,9 +124,10 @@ async def housekeeping() -> None:
     async with SessionLocal() as session:
         expired = await OrderService(session).expire_unpaid()
         cleaned = await StockService(session).cleanup()
+        burned = await LoyaltyService(session).expire_old()
         await session.commit()
-        if expired or cleaned:
-            log.info("Просрочено заказов: %s, снято со стопа: %s", expired, cleaned)
+        if expired or cleaned or burned:
+            log.info("Просрочено заказов: %s, снято со стопа: %s, сгорело карт: %s", expired, cleaned, burned)
 
 
 async def run_worker(bot: Bot) -> None:

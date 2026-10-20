@@ -79,10 +79,12 @@ class LoyaltyRepository(BaseRepository[LoyaltyAccount]):
         result = await self.session.execute(stmt.limit(1))
         return result.scalar_one_or_none() is not None
 
-    async def stale(self, border: datetime) -> list[LoyaltyAccount]:
+    async def stale(self, border: datetime, gifts: bool = False) -> list[LoyaltyAccount]:
+        has = LoyaltyAccount.gifts_available > 0 if gifts else LoyaltyAccount.stamps > 0
+        since = func.coalesce(LoyaltyAccount.last_activity_at, LoyaltyAccount.created_at)
         stmt = (
             select(LoyaltyAccount)
-            .where(LoyaltyAccount.stamps > 0, LoyaltyAccount.last_activity_at < border)
+            .where(has, since < border)
             .with_for_update(skip_locked=True)
         )
         result = await self.session.execute(stmt)

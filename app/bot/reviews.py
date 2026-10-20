@@ -8,6 +8,7 @@ from app.models import Review
 from .keyboards import app_url, button
 
 PAGE = 5
+HOW = "✍️ Как оставить отзыв: заберите заказ, откройте его в приложении («Профиль» → «Мои заказы») и поставьте оценку. Отзыв можно оставить на каждый полученный заказ."
 MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 
 
@@ -50,9 +51,9 @@ def render(avg: float | None, count: int, rows: list[Review], total: int, offset
         body = "\n\n".join(review_block(r) for r in rows)
         pages = (total + PAGE - 1) // PAGE
         footer = f"\n\nСтраница {offset // PAGE + 1} из {pages}" if pages > 1 else ""
-        text = f"{title}\n\n{body}{footer}"
+        text = f"{title}\n\n{body}{footer}\n\n{HOW}"
     else:
-        text = f"{title}\n\nПока здесь пусто. Оцените заказ в приложении после получения — ваш отзыв появится тут."
+        text = f"{title}\n\nПока отзывов нет — ваш может стать первым.\n\n{HOW}"
     nav = []
     if offset > 0:
         nav.append(InlineKeyboardButton(text="← Новее", callback_data=f"rv:{max(offset - PAGE, 0)}"))

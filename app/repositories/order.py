@@ -209,6 +209,15 @@ class OrderRepository(BaseRepository[Order]):
         result = await self.session.execute(stmt)
         return list(result.all())
 
+    async def payment_methods(self, location_id: int | None, d1: date, d2: date) -> dict[str, int]:
+        stmt = (
+            select(Order.payment_method, func.count(Order.id))
+            .where(*self._done(location_id, d1, d2))
+            .group_by(Order.payment_method)
+        )
+        result = await self.session.execute(stmt)
+        return {str(getattr(m, "value", m)): int(n) for m, n in result.all()}
+
     async def count_in_period(self, location_id: int | None, d1: date, d2: date, statuses: list[OrderStatus] | None = None) -> int:
         stmt = select(func.count(Order.id)).where(Order.business_date.between(d1, d2))
         if location_id:

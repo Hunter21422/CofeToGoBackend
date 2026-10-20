@@ -41,6 +41,8 @@ class StaffCreate(BaseModel):
 
 
 class StaffUpdate(BaseModel):
+    first_name: str | None = Field(None, min_length=1, max_length=64)
+    last_name: str | None = Field(None, max_length=64)
     role: StaffRole | None = None
     location_id: int | None = None
     is_active: bool | None = None
