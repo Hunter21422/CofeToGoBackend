@@ -16,6 +16,7 @@ async def setup(bot: Bot) -> None:
     await bot.set_my_commands([
         BotCommand(command="start", description="Открыть меню"),
         BotCommand(command="card", description="Моя карта лояльности"),
+        BotCommand(command="reviews", description="Отзывы гостей"),
         BotCommand(command="help", description="Помощь"),
     ])
     if settings.webapp_url.startswith("https://"):

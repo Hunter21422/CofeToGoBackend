@@ -1,14 +1,16 @@
-from aiogram import Router
+from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from redis.asyncio import Redis
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.repositories import StaffRepository
+from app.repositories import ReviewRepository, StaffRepository
 from app.services import AuthService, LoyaltyService
 
 from .keyboards import app_url, button, keyboard
+from .reviews import PAGE, render
 
 router = Router()
 redis = Redis.from_url(settings.redis_url, decode_responses=True)
@@ -46,9 +48,41 @@ async def start(message: Message, command: CommandObject):
         f"Привет, {message.from_user.first_name}! Это «{settings.app_name}» ☕\n\n"
         "Заказывайте заранее и забирайте без очереди.\n"
         "Каждый 6-й напиток — в подарок: штамп ставится за любой напиток.\n\n"
-        "/card — моя карта\n/help — помощь"
+        "/card — моя карта\n/reviews — отзывы гостей\n/help — помощь"
     )
-    await message.answer(text, reply_markup=keyboard(button("☕ Открыть меню", app_url())))
+    await message.answer(
+        text,
+        reply_markup=keyboard(button("☕ Открыть меню", app_url()), InlineKeyboardButton(text="⭐ Отзывы гостей", callback_data="rv:0")),
+    )
+
+
+async def reviews_page(offset: int):
+    async with SessionLocal() as session:
+        repo = ReviewRepository(session)
+        avg, count = await repo.summary()
+        rows, total = await repo.public_page(PAGE, offset)
+        return render(avg, count, rows, total, offset)
+
+
+@router.message(Command("reviews"))
+async def reviews(message: Message):
+    text, markup = await reviews_page(0)
+    await message.answer(text, reply_markup=markup)
+
+
+@router.callback_query(F.data.startswith("rv:"))
+async def reviews_more(call: CallbackQuery):
+    raw = call.data.split(":", 1)[1]
+    offset = int(raw) if raw.isdigit() else 0
+    text, markup = await reviews_page(offset)
+    if offset == 0 and call.message and not (call.message.text or "").startswith("⭐"):
+        await call.message.answer(text, reply_markup=markup)
+    elif call.message:
+        try:
+            await call.message.edit_text(text, reply_markup=markup)
+        except TelegramBadRequest:
+            pass
+    await call.answer()
 
 
 @router.message(Command("card"))
@@ -77,6 +111,7 @@ async def help_(message: Message):
     await message.answer(
         "Что умеет бот:\n\n"
         "/start — открыть меню и заказать\n"
-        "/card — сколько штампов до подарка\n\n"
+        "/card — сколько штампов до подарка\n"
+        "/reviews — что говорят гости\n\n"
         "Когда заказ примут и когда он будет готов — пришлю сообщение сюда."
     )

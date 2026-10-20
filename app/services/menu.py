@@ -147,6 +147,7 @@ class MenuService:
             modifiers=[ModifierRead(id=m.id,name=m.name,price_delta=m.price_delta,is_default=m.is_default,is_available=m.id not in stop_modifiers) for m in mods]
             groups.append(ModifierGroupRead(id=g.id,name=g.name,min_select=g.min_select,max_select=min(g.max_select,len(mods)),modifiers=modifiers))
         is_favorite=user_id is not None and product.id in await self.favorites.product_ids(user_id)
-        available=self.category_open(product.category,now) and product.id not in stop_products and any(v.id not in stop_variants for v in variants)
+        blocked=any(g.min_select>0 and not any(m.is_available for m in g.modifiers) for g in groups)
+        available=self.category_open(product.category,now) and product.id not in stop_products and any(v.id not in stop_variants for v in variants) and not blocked
         variants_out=[VariantRead(id=v.id,name=v.name,volume_ml=v.volume_ml,price=v.price,old_price=v.old_price,is_default=v.is_default,is_available=v.id not in stop_variants,calories=v.calories,proteins=v.proteins,fats=v.fats,carbs=v.carbs) for v in variants]
         return ProductRead(id=product.id,name=product.name,slug=product.slug,description=product.description,image_url=product.image_url,min_price=min(v.price for v in variants),tags=list(product.tags),is_available=available,composition=product.composition,counts_for_loyalty=product.counts_for_loyalty,can_be_gift=product.can_be_gift,variants=variants_out,modifier_groups=groups,is_favorite=is_favorite)

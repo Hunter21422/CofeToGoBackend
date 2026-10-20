@@ -24,8 +24,6 @@ class ModifierGroupCreate(BaseModel):
     def check(self):
         if self.max_select < self.min_select:
             raise ValueError("max_select должен быть >= min_select")
-        if self.max_select > len(self.modifiers):
-            raise ValueError("max_select больше количества модификаторов")
         if sum(m.is_default for m in self.modifiers) > self.max_select:
             raise ValueError("Модификаторов по умолчанию больше, чем max_select")
         return self

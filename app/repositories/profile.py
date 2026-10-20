@@ -75,6 +75,20 @@ class ReviewRepository(BaseRepository[Review]):
             stmt = stmt.where(func.date(Review.created_at) <= f.date_to)
         return await self.paginate_stmt(stmt, limit=f.limit, offset=f.offset)
 
+    async def public_page(self, limit: int, offset: int) -> tuple[list[Review], int]:
+        stmt = (
+            select(Review)
+            .where(Review.comment.is_not(None), Review.comment != "")
+            .options(selectinload(Review.user), selectinload(Review.location))
+            .order_by(Review.created_at.desc())
+        )
+        return await self.paginate_stmt(stmt, limit=limit, offset=offset)
+
+    async def summary(self) -> tuple[float | None, int]:
+        result = await self.session.execute(select(func.avg(Review.rating), func.count(Review.id)))
+        avg, count = result.one()
+        return (float(avg) if avg is not None else None), int(count)
+
     async def avg_rating(self, location_id: int | None = None) -> float | None:
         stmt = select(func.avg(Review.rating))
         if location_id:
