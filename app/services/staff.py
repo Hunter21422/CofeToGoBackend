@@ -3,10 +3,12 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from redis.asyncio import Redis
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_secret, verify_secret
-from app.models import Location, Staff, User
+from app.models import LoyaltyAccount, Location, Order, Review, Staff, User
 from app.models.enums import StaffRole
 from app.repositories import LocationRepository, RefreshTokenRepository, StaffRepository, UserRepository
 from app.schemas.auth import PinVerifyOut, TokenPair
@@ -16,6 +18,7 @@ from .errors import Conflict, Forbidden, NotFound, ServiceError
 
 MAX_PIN_ATTEMPTS = 5
 PIN_LOCK_MINUTES = 15
+TG_LINK_TTL_SEC = 86400
 
 
 class StaffService:
@@ -140,6 +143,50 @@ class StaffService:
         await self.staff.update(staff, **fields)
         if fields.get("is_active") is False:
             await self.revoke_sessions(staff_id)
+        return staff
+
+    async def tg_link_create(self, redis: Redis, staff_id: int) -> tuple[str, datetime]:
+        staff = await self.get_staff(staff_id)
+        token = secrets.token_urlsafe(16)
+        await redis.set(f"staff:tglink:{token}", staff.id, ex=TG_LINK_TTL_SEC)
+        return token, datetime.now(timezone.utc) + timedelta(seconds=TG_LINK_TTL_SEC)
+
+    async def _has_history(self, user_id: int) -> bool:
+        session = self.staff.session
+        orders = (await session.execute(select(func.count(Order.id)).where(Order.user_id == user_id))).scalar_one()
+        reviews = (await session.execute(select(func.count(Review.id)).where(Review.user_id == user_id))).scalar_one()
+        card = await session.get(LoyaltyAccount, user_id)
+        return bool(orders or reviews or (card and (card.lifetime_stamps or card.stamps or card.gifts_available)))
+
+    async def tg_link_use(self, redis: Redis, token: str, tg: dict) -> Staff:
+        raw = await redis.getdel(f"staff:tglink:{token}")
+        if raw is None:
+            raise NotFound("Ссылка устарела или уже использована. Попросите владельца прислать новую")
+        staff = await self.get_staff(int(raw))
+        target = staff.user
+        other = await self.users.by_tg_id(tg["id"])
+        if other is not None and other.id != target.id:
+            if await self.staff.by_user_id(other.id) is not None:
+                raise Conflict("Этот Telegram уже привязан к другому сотруднику")
+            if not await self._has_history(other.id):
+                await self.users.update(other, tg_id=None, username=None)
+            elif not await self._has_history(target.id):
+                phone = target.phone
+                await self.users.update(target, phone=None)
+                fields = {"phone": phone} if phone else {}
+                if not other.first_name or other.first_name in ("Гость", "Сотрудник"):
+                    fields["first_name"] = target.first_name
+                    fields["last_name"] = target.last_name
+                if fields:
+                    await self.users.update(other, **fields)
+                await self.staff.update(staff, user_id=other.id)
+                await self.tokens.revoke_all(target.id)
+                self.staff.session.expire(staff)
+                return await self.staff.by_user_id(other.id) or staff
+            else:
+                raise Conflict("У этого Telegram и у сотрудника уже есть свои заказы — объединить автоматически нельзя. Напишите разработчику")
+        if other is None or other.id != target.id:
+            await self.users.update(target, tg_id=tg["id"], username=tg.get("username"))
         return staff
 
     async def reset_pin(self, staff_id: int) -> Staff:

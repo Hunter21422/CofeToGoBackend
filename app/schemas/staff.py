@@ -21,6 +21,7 @@ class StaffRead(StaffShort):
     pin_set: bool
     phone_linked: bool = False
     phone: str | None = None
+    tg_linked: bool = False
     pin_locked_until: datetime | None
     last_login_at: datetime | None
     created_at: datetime
@@ -59,3 +60,8 @@ class AdminMe(BaseModel):
     pin_set: bool
     pin_verified: bool          # в текущем токене pin=true
     idle_lock_minutes: int = 15  # через сколько минут бездействия снова спросить PIN
+
+
+class TgLinkOut(BaseModel):
+    token: str
+    expires_at: datetime

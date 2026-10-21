@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Order, OrderItem, OrderStatusHistory
 from app.models.enums import (
     ACTIVE_ORDER_STATUSES,
+    ENABLED_PAYMENT_METHODS,
     ONLINE_PAYMENT_METHODS,
     CancelledBy,
     OrderPaymentStatus,
@@ -65,8 +66,8 @@ class OrderService:
             raise Forbidden("Онлайн-заказы для вашего аккаунта недоступны")
 
         priced = await self.cart.quote(user_id, data)
-        if data.payment_method not in priced.location.payment_methods:
-            raise ServiceError("Этот способ оплаты в кофейне недоступен")
+        if data.payment_method not in priced.location.payment_methods or data.payment_method not in ENABLED_PAYMENT_METHODS:
+            raise ServiceError("Этот способ оплаты недоступен. Оплатить можно наличными или картой при получении")
         if data.promo_code and priced.out.promo_error:
             raise ServiceError(priced.out.promo_error, code="promo_invalid")
         if not priced.out.can_checkout:

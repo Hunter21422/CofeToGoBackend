@@ -59,6 +59,7 @@ class PaymentMethod(StrEnum):
 
 
 ONLINE_PAYMENT_METHODS = {PaymentMethod.CARD_ONLINE, PaymentMethod.SBP, PaymentMethod.TELEGRAM}
+ENABLED_PAYMENT_METHODS = [PaymentMethod.CARD_ON_PICKUP, PaymentMethod.CASH]
 
 
 class OrderPaymentStatus(StrEnum):

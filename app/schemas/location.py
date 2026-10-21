@@ -2,9 +2,18 @@ import datetime as dt
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.enums import PaymentMethod
+from app.models.enums import ENABLED_PAYMENT_METHODS, PaymentMethod
 
 from .common import BaseSchema, Name, Phone, Slug
+
+
+def only_enabled(methods: list[PaymentMethod] | None) -> list[PaymentMethod] | None:
+    if methods is None:
+        return None
+    off = [m for m in methods if m not in ENABLED_PAYMENT_METHODS]
+    if off:
+        raise ValueError("Онлайн-оплата пока не подключена: доступны наличные и карта при получении")
+    return methods
 
 
 class LocationHoursSchema(BaseSchema):
@@ -45,6 +54,11 @@ class LocationRead(LocationShort):
     payment_methods: list[PaymentMethod]
     avg_prep_minutes: int
     hours: list[LocationHoursSchema]
+
+    @field_validator("payment_methods")
+    @classmethod
+    def enabled_only(cls, v: list[PaymentMethod]) -> list[PaymentMethod]:
+        return [m for m in v if m in ENABLED_PAYMENT_METHODS] or list(ENABLED_PAYMENT_METHODS)
     is_open_now: bool = False  # считается в сервисе
 
 
@@ -68,6 +82,8 @@ class LocationCreate(BaseModel):
     min_pickup_minutes: int = Field(5, ge=0, le=240)
     max_orders_per_slot: int | None = Field(None, ge=1)
 
+    _enabled = field_validator("payment_methods")(classmethod(lambda cls, v: only_enabled(v)))
+
 
 class LocationUpdate(BaseModel):
     name: Name | None = None
@@ -84,6 +100,8 @@ class LocationUpdate(BaseModel):
     max_orders_per_slot: int | None = Field(None, ge=1)
     is_active: bool | None = None
     accepts_orders: bool | None = None
+
+    _enabled = field_validator("payment_methods")(classmethod(lambda cls, v: only_enabled(v)))
 
 
 class LocationHoursUpdate(BaseModel):

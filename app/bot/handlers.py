@@ -9,7 +9,8 @@ from redis.asyncio import Redis
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.repositories import ReviewRepository, StaffRepository
-from app.services import AuthService, LoyaltyService
+from app.services import AuthService, LoyaltyService, StaffService
+from app.services.errors import ServiceError
 
 from .keyboards import app_url, button, keyboard
 from .reviews import PAGE, render
@@ -67,8 +68,29 @@ async def send_card(message: Message, session, user_id: int) -> None:
     await message.answer(text, reply_markup=keyboard(button("Показать код на кассе", app_url("/card"))))
 
 
+async def link_staff(message: Message, token: str) -> None:
+    tg = message.from_user
+    async with SessionLocal() as session:
+        try:
+            staff = await StaffService(session).tg_link_use(redis, token, {"id": tg.id, "username": tg.username})
+            await session.commit()
+        except ServiceError as e:
+            await session.rollback()
+            await message.answer(f"Не получилось привязать Telegram: {e}")
+            return
+        name = staff.user.first_name if staff.user else ""
+    await message.answer(
+        f"Готово, {name}! Telegram привязан к вашему аккаунту сотрудника.\n\n"
+        "Теперь в панель можно входить и через бота — команда /admin, и по номеру телефона, как раньше. PIN тот же.",
+        reply_markup=keyboard(button("Открыть панель", settings.admin_url)),
+    )
+
+
 @router.message(CommandStart())
 async def start(message: Message, command: CommandObject):
+    if command.args and command.args.startswith("link_"):
+        await link_staff(message, command.args[5:])
+        return
     async with SessionLocal() as session:
         user = await upsert(message, session)
         if command.args == "card":

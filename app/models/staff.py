@@ -49,6 +49,10 @@ class Staff(IdMixin, TimestampMixin, Base):
         return self.user.phone if self.user else None
 
     @property
+    def tg_linked(self) -> bool:
+        return bool(self.user and self.user.tg_id)
+
+    @property
     def pin_set(self) -> bool:
         return self.pin_hash is not None
 

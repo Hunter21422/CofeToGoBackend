@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.deps import Owner, SessionDep
-from app.schemas.staff import StaffCreate, StaffRead, StaffUpdate
+from app.api.deps import Owner, RedisDep, SessionDep
+from app.schemas.staff import StaffCreate, StaffRead, StaffUpdate, TgLinkOut
 from app.services import StaffService
 router=APIRouter(prefix="/admin/staff", tags=["admin: команда"])
 @router.get("", response_model=list[StaffRead])
@@ -21,3 +21,7 @@ async def revoke_sessions(staff_id: int, session: SessionDep, ctx: Owner):
     service = StaffService(session)
     await service.revoke_sessions(staff_id)
     return await service.get_staff(staff_id)
+@router.post("/{staff_id}/tg-link", response_model=TgLinkOut)
+async def tg_link(staff_id: int, session: SessionDep, redis: RedisDep, ctx: Owner):
+    token, expires_at = await StaffService(session).tg_link_create(redis, staff_id)
+    return TgLinkOut(token=token, expires_at=expires_at)
