@@ -51,6 +51,7 @@ class CartQuoteOut(BaseModel):
     promo_error: str | None = None
     gift_available: bool = False
     gift_applicable: bool = False
+    gift_with_modifiers: bool = True
     stamps_to_earn: int = 0
     estimated_ready_at: datetime | None = None
     warnings: list[str] = []

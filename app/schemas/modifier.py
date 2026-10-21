@@ -51,3 +51,7 @@ class ModifierGroupAdminRead(BaseSchema):
     sort_order: int
     is_active: bool
     modifiers: list[ModifierAdminRead]
+
+
+class GroupProductsIn(BaseModel):
+    product_ids: list[int] = Field(default_factory=list, max_length=500)

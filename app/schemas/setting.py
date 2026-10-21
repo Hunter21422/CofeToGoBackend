@@ -5,6 +5,7 @@ class LoyaltySettings(BaseModel):
     stamps_per_gift: int = Field(5, ge=2, le=20)
     stamps_expire_days: int | None = Field(None, ge=1)  # None = не сгорают
     gift_expire_days: int | None = Field(None, ge=1)
+    gift_with_modifiers: bool = True
     birthday_gift: bool = True
     referral_stamps: int = Field(1, ge=0, le=10)
 

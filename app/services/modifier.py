@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Modifier, ModifierGroup
+from app.models import Modifier, ModifierGroup, Product, ProductModifierGroup
 from app.repositories import ModifierGroupRepository
 from app.schemas.modifier import ModifierGroupCreate, ModifierGroupUpdate
 
@@ -58,3 +59,26 @@ class ModifierService:
     async def delete_group(self, group_id: int) -> None:
         group = await self.get_group(group_id)
         await self.groups.delete(group)
+
+    async def product_ids(self, group_id: int) -> list[int]:
+        await self.get_group(group_id)
+        rows = await self.groups.session.execute(select(ProductModifierGroup.product_id).where(ProductModifierGroup.group_id == group_id))
+        return [r[0] for r in rows.all()]
+
+    async def set_products(self, group_id: int, product_ids: list[int]) -> list[int]:
+        await self.get_group(group_id)
+        session = self.groups.session
+        wanted = set(product_ids)
+        if wanted:
+            found = set((await session.execute(select(Product.id).where(Product.id.in_(wanted)))).scalars().all())
+            if found != wanted:
+                raise NotFound("Часть товаров не найдена")
+        current = set(await self.product_ids(group_id))
+        gone = current - wanted
+        if gone:
+            await session.execute(delete(ProductModifierGroup).where(ProductModifierGroup.group_id == group_id, ProductModifierGroup.product_id.in_(gone)))
+        for product_id in wanted - current:
+            last = (await session.execute(select(func.max(ProductModifierGroup.sort_order)).where(ProductModifierGroup.product_id == product_id))).scalar()
+            session.add(ProductModifierGroup(product_id=product_id, group_id=group_id, sort_order=(last if last is not None else -1) + 1, modifier_ids=None))
+        await session.flush()
+        return sorted(wanted)

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Location, PromoCode, ProductVariant
 from app.models.enums import PromoType
-from app.repositories import LocationRepository, LoyaltyRepository, ProductRepository, StockRepository, UserRepository
+from app.repositories import LocationRepository, LoyaltyRepository, ProductRepository, SettingRepository, StockRepository, UserRepository
 from app.schemas.cart import CartItemIn, CartItemQuote, CartQuoteIn, CartQuoteOut
 
 from .errors import NotFound, ServiceError
@@ -49,6 +49,7 @@ class CartService:
         self.loyalty = LoyaltyRepository(session)
         self.users = UserRepository(session)
         self.promo = PromoService(session)
+        self.settings = SettingRepository(session)
 
     async def quote(self, user_id: int, data: CartQuoteIn) -> PricedCart:
         location = await self.locations.with_hours(data.location_id)
@@ -67,9 +68,10 @@ class CartService:
         gift_candidates = [l for l in ok_lines if variants[l.variant_id].product.can_be_gift]
         gift_applicable = gift_available and bool(gift_candidates)
         gift_discount = 0
+        with_mods = bool(await self.settings.get_value("loyalty.gift_with_modifiers", default=True))
         if data.use_gift and gift_applicable:
-            best = max(gift_candidates, key=lambda l: variants[l.variant_id].price)
-            gift_discount = variants[best.variant_id].price
+            best = max(gift_candidates, key=lambda l: l.unit_price if with_mods else variants[l.variant_id].price)
+            gift_discount = best.unit_price if with_mods else variants[best.variant_id].price
             if best.quantity > 1:
                 best.quantity -= 1
                 best.line_total = best.unit_price * best.quantity
@@ -139,6 +141,7 @@ class CartService:
             promo_error=promo_error,
             gift_available=gift_available,
             gift_applicable=gift_applicable,
+            gift_with_modifiers=with_mods,
             stamps_to_earn=stamps,
             estimated_ready_at=ready_at,
             warnings=warnings,
