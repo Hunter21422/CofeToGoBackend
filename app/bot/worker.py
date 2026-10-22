@@ -47,10 +47,18 @@ async def send_sms(user: User, text: str | None) -> str | None:
     return None
 
 
-async def send_web(session, n: NotificationLog, user: User, sms_text: str | None) -> str | None:
+async def send_push(session, n: NotificationLog, user: User) -> int:
     p = n.payload or {}
     body = re.sub(r"<[^>]+>", "", p.get("text") or "").strip()
-    if await PushService(session).send(user.id, settings.app_name, body, p.get("button_url")):
+    try:
+        return await PushService(session).send(user.id, settings.app_name, body, p.get("button_url"))
+    except Exception as e:
+        log.warning("push user %s: %s", user.id, e)
+        return 0
+
+
+async def send_web(session, n: NotificationLog, user: User, sms_text: str | None) -> str | None:
+    if await send_push(session, n, user):
         return None
     return await send_sms(user, sms_text)
 
@@ -79,6 +87,8 @@ async def send_pending(bot: Bot) -> int:
                     error = "Бот заблокирован"
                 except TelegramBadRequest as e:
                     error = str(e)[:500]
+                if n.type != NotificationType.STAFF_NEW_ORDER and await send_push(session, n, user):
+                    error = None
             n.status = NotificationStatus.FAILED if error else NotificationStatus.SENT
             n.error = error
             n.sent_at = None if error else datetime.now(timezone.utc)
