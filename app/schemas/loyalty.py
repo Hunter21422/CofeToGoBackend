@@ -80,7 +80,7 @@ class ScanResultOut(BaseModel):
 class StampAddIn(BaseModel):
     user_id: int
     location_id: int
-    count: int = Field(1, ge=1, le=5)
+    count: int = Field(1, ge=1, le=1)
     visit: str = Field(min_length=8, max_length=64)
 
 

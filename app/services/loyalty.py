@@ -16,7 +16,7 @@ from .errors import Conflict, Forbidden, NotFound, ServiceError
 
 CODE_TTL_SEC = 300
 VISIT_TTL_SEC = 600
-MAX_STAMPS_PER_VISIT = 5
+MAX_STAMPS_PER_VISIT = 1
 MAX_CASH_STAMPS_PER_DAY = 10
 
 

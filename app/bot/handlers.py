@@ -99,7 +99,7 @@ async def start(message: Message, command: CommandObject):
     text = (
         f"Привет, {message.from_user.first_name}! Это «{settings.app_name}» ☕\n\n"
         "Заказывайте заранее и забирайте без очереди.\n"
-        "Каждый 6-й напиток — в подарок: штамп ставится за любой напиток.\n\n"
+        "Штамп — за каждый заказ с напитком, 6-й заказ — напиток в подарок.\n\n"
         "/card — моя карта\n/reviews — отзывы гостей\n/help — помощь"
     )
     await message.answer(

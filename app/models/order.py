@@ -111,6 +111,10 @@ class Order(IdMixin, TimestampMixin, Base):
     def loyalty_items_count(self) -> int:
         return sum(i.quantity for i in self.items if i.counts_for_loyalty and not i.is_gift)
 
+    @property
+    def loyalty_stamps(self) -> int:
+        return 1 if self.loyalty_items_count > 0 else 0
+
 
 class OrderItem(IdMixin, Base):
     """Всё хранится снапшотом — изменение меню не ломает старые заказы."""

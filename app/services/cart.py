@@ -121,7 +121,7 @@ class CartService:
         if user is not None and user.is_blocked:
             warnings.append("Онлайн-заказы для вашего аккаунта недоступны")
 
-        stamps = sum(l.quantity for l in lines if l.error is None and l.counts_for_loyalty and not l.is_gift)
+        stamps = 1 if any(l.error is None and l.counts_for_loyalty and not l.is_gift for l in lines) else 0
         can_checkout = bool(ok_lines) and len(ok_lines) == len(data.items) and not warnings
 
         out = CartQuoteOut(

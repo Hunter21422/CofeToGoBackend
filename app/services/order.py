@@ -231,7 +231,7 @@ class OrderService:
             if order.payment_status == OrderPaymentStatus.UNPAID:
                 order.payment_status = OrderPaymentStatus.PAID
             if not order.loyalty_processed:
-                stamps = order.loyalty_items_count
+                stamps = order.loyalty_stamps
                 if stamps > 0:
                     await self.loyalty.add_stamps(order.user_id, stamps, order_id=order.id, staff_id=staff_id, location_id=order.location_id)
                 order.loyalty_processed = True
