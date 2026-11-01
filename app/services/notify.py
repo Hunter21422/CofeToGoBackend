@@ -83,13 +83,14 @@ class NotifyService:
             lines.append(f"• {name} ×{item.quantity}{gift}" + (f"\n   {mods}" if mods else ""))
         when = f"\nК {order.pickup_at.astimezone(ZoneInfo(order.location.timezone)).strftime('%H:%M')}" if order.pickup_at else "\nКак можно скорее"
         comment = f"\n💬 {order.comment}" if order.comment else ""
-        text = f"🆕 Новый заказ {order.display_number} · {money(order.total)}\n" + "\n".join(lines) + when + comment
+        text = f"🆕 Новый заказ {order.display_number} · {money(order.total)}\n📍 {order.location.name}\n" + "\n".join(lines) + when + comment
+        url = f"{self.config.admin_url}#/?loc={order.location_id}"
         for s in await self.staff.list_team():
             if s.is_active and s.role in (StaffRole.BARISTA, StaffRole.MANAGER, StaffRole.OWNER) and s.location_id in (None, order.location_id):
-                self._add(s.user_id, NotificationType.STAFF_NEW_ORDER, text, order.id, "Очередь заказов", self.config.admin_url)
+                self._add(s.user_id, NotificationType.STAFF_NEW_ORDER, text, order.id, "Очередь заказов", url)
 
     async def order_cancelled_by_guest(self, order: Order) -> None:
-        text = f"❌ Гость отменил заказ {order.display_number}"
+        text = f"❌ Гость отменил заказ {order.display_number} · {order.location.name}"
         for s in await self.staff.list_team():
             if s.is_active and s.location_id in (None, order.location_id):
                 self._add(s.user_id, NotificationType.STAFF_NEW_ORDER, text, order.id)

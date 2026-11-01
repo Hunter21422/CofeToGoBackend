@@ -13,6 +13,9 @@ from app.schemas.cart import CartItemIn, CartItemQuote, CartQuoteIn, CartQuoteOu
 from .errors import NotFound, ServiceError
 from .promo import PromoService
 
+SODA_TAG = "soda"
+DEAL_ML = 400
+
 
 @dataclass
 class PricedLine:
@@ -81,12 +84,41 @@ class CartService:
                 best.is_gift = True
                 best.line_total = best.unit_price - gift_discount
 
+        deal_discount = 0
+        deal_hint: str | None = None
+        if await self.settings.get_value("deal.soda_enabled", default=False):
+            def is_soda(line: PricedLine) -> bool:
+                return SODA_TAG in (variants[line.variant_id].product.tags or [])
+
+            big = sum(
+                l.quantity for l in lines
+                if l.error is None and not l.is_gift and not is_soda(l) and variants[l.variant_id].volume_ml == DEAL_ML
+            )
+            free = big // 2
+            for l in sorted([x for x in lines if x.error is None and not x.is_gift and is_soda(x)], key=lambda x: -x.unit_price):
+                if free <= 0:
+                    break
+                n = min(free, l.quantity)
+                free -= n
+                deal_discount += l.unit_price * n
+                if n == l.quantity:
+                    l.is_gift = True
+                    l.line_total = 0
+                else:
+                    l.quantity -= n
+                    l.line_total = l.unit_price * l.quantity
+                    lines.insert(lines.index(l) + 1, PricedLine(**{**l.__dict__, "quantity": n, "line_total": 0, "is_gift": True}))
+            if free > 0:
+                deal_hint = f"По акции вам {'положена газировка' if free == 1 else f'положено {free} газировки'} в подарок — добавьте Coca-Cola, Sprite или Fanta"
+            elif big % 2 == 1:
+                deal_hint = "Добавьте ещё один напиток 0,4 — и газировка в подарок"
+
         promo: PromoCode | None = None
         promo_discount = 0
         promo_error: str | None = None
         if data.promo_code:
             try:
-                promo, promo_discount = await self.promo.validate(data.promo_code, user_id, location.id, subtotal - gift_discount)
+                promo, promo_discount = await self.promo.validate(data.promo_code, user_id, location.id, subtotal - gift_discount - deal_discount)
             except ServiceError as e:
                 promo_error = e.detail
             else:
@@ -100,9 +132,9 @@ class CartService:
                     ))
                     subtotal += variant.price
                 else:
-                    promo_discount = min(promo_discount, subtotal - gift_discount)
+                    promo_discount = min(promo_discount, subtotal - gift_discount - deal_discount)
 
-        discount_total = gift_discount + promo_discount
+        discount_total = gift_discount + deal_discount + promo_discount
         total = max(subtotal - discount_total, 0)
         discount_total = subtotal - total
 
@@ -136,6 +168,8 @@ class CartService:
             subtotal=subtotal,
             promo_discount=promo_discount if promo else 0,
             gift_discount=gift_discount,
+            deal_discount=deal_discount,
+            deal_hint=deal_hint,
             discount_total=discount_total,
             total=total,
             promo_error=promo_error,

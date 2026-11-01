@@ -8,7 +8,7 @@ from redis.asyncio import Redis
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.repositories import ReviewRepository, StaffRepository
+from app.repositories import ReviewRepository, SettingRepository, StaffRepository
 from app.services import AuthService, LoyaltyService, StaffService
 from app.services.errors import ServiceError
 
@@ -96,10 +96,11 @@ async def start(message: Message, command: CommandObject):
         if command.args == "card":
             await send_card(message, session, user.id)
             return
+        per_gift = int(await SettingRepository(session).get_value("loyalty.stamps_per_gift", default=5))
     text = (
         f"Привет, {message.from_user.first_name}! Это «{settings.app_name}» ☕\n\n"
         "Заказывайте заранее и забирайте без очереди.\n"
-        "Штамп — за каждый заказ с напитком, 6-й заказ — напиток в подарок.\n\n"
+        f"Штамп — за каждый заказ с напитком, {per_gift + 1}-й заказ — напиток в подарок.\n\n"
         "/card — моя карта\n/reviews — отзывы гостей\n/help — помощь"
     )
     await message.answer(

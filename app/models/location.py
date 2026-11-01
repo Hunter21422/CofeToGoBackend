@@ -39,6 +39,7 @@ class Location(IdMixin, TimestampMixin, Base):
     min_pickup_minutes: Mapped[int] = mapped_column(default=5)
     max_orders_per_slot: Mapped[int | None]  # лимит заказов на 15-минутный слот
     sort_order: Mapped[int] = mapped_column(default=0)
+    deleted_at: Mapped[datetime | None]
 
     hours: Mapped[list[LocationHours]] = relationship(
         back_populates="location", cascade="all, delete-orphan", order_by="LocationHours.weekday"

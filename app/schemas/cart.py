@@ -46,6 +46,8 @@ class CartQuoteOut(BaseModel):
     subtotal: Money
     promo_discount: Money = 0
     gift_discount: Money = 0
+    deal_discount: Money = 0
+    deal_hint: str | None = None
     discount_total: Money
     total: Money
     promo_error: str | None = None

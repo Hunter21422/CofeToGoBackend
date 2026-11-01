@@ -15,3 +15,6 @@ async def update_location(location_id:int,data:LocationUpdate,session:SessionDep
 @router.put("/{location_id}/hours",response_model=LocationRead)
 async def set_hours(location_id:int,data:LocationHoursUpdate,session:SessionDep,ctx:Owner):
     return await LocationService(session).set_hours(location_id,data)
+@router.delete("/{location_id}",status_code=204)
+async def delete_location(location_id:int,session:SessionDep,ctx:Owner):
+    await LocationService(session).delete_location(location_id)

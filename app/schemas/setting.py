@@ -54,11 +54,16 @@ class TipsSettings(BaseModel):
         return self
 
 
+class DealSettings(BaseModel):
+    soda_enabled: bool = False
+
+
 class SettingsOut(BaseModel):
     loyalty: LoyaltySettings
     orders: OrderSettings
     texts: NotificationTexts
     tips: TipsSettings
+    deal: DealSettings
 
 
 class SettingsUpdate(BaseModel):
@@ -66,3 +71,4 @@ class SettingsUpdate(BaseModel):
     orders: OrderSettings | None = None
     texts: NotificationTexts | None = None
     tips: TipsSettings | None = None
+    deal: DealSettings | None = None

@@ -1,5 +1,7 @@
 import asyncio
 
+from sqlalchemy import text
+
 from app.db.session import SessionLocal, engine
 from app.models import Base
 from app.services.push import PushService
@@ -8,6 +10,7 @@ from app.services.push import PushService
 async def main() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("ALTER TABLE locations ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
     async with SessionLocal() as session:
         await PushService(session).keys()
         await session.commit()

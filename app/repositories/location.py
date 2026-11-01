@@ -16,7 +16,7 @@ class LocationRepository(BaseRepository[Location]):
     async def list_active(self) -> list[Location]:
         stmt = (
             select(Location)
-            .where(Location.is_active.is_(True))
+            .where(Location.is_active.is_(True), Location.deleted_at.is_(None))
             .options(selectinload(Location.hours), selectinload(Location.special_days))
             .order_by(Location.sort_order, Location.id)
         )
@@ -26,6 +26,7 @@ class LocationRepository(BaseRepository[Location]):
     async def list_all(self) -> list[Location]:
         stmt = (
             select(Location)
+            .where(Location.deleted_at.is_(None))
             .options(selectinload(Location.hours), selectinload(Location.special_days))
             .order_by(Location.sort_order, Location.id)
         )

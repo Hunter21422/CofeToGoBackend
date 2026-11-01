@@ -3,9 +3,9 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import SettingRepository
-from app.schemas.setting import LoyaltySettings, NotificationTexts, OrderSettings, SettingsOut, SettingsUpdate, TipsSettings
+from app.schemas.setting import LoyaltySettings, NotificationTexts, OrderSettings, DealSettings, SettingsOut, SettingsUpdate, TipsSettings
 
-SECTIONS = {"loyalty": LoyaltySettings, "orders": OrderSettings, "texts": NotificationTexts, "tips": TipsSettings}
+SECTIONS = {"loyalty": LoyaltySettings, "orders": OrderSettings, "texts": NotificationTexts, "tips": TipsSettings, "deal": DealSettings}
 
 
 class SettingsService:
