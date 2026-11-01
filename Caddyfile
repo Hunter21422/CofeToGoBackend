@@ -6,3 +6,24 @@
     encode gzip
     reverse_proxy 127.0.0.1:8000
 }
+
+{$WEB_DOMAIN} {
+    encode zstd gzip
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000 {
+            header_up -X-Vercel-Forwarded-For
+        }
+    }
+
+    handle {
+        root * /srv/web
+        @static path /assets/*
+        @dynamic not path /assets/*
+        header @static Cache-Control "public, max-age=31536000, immutable"
+        header @dynamic Cache-Control "no-cache"
+        header /manifest.webmanifest Content-Type "application/manifest+json"
+        try_files {path} {path}/index.html /index.html
+        file_server
+    }
+}

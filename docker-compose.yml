@@ -54,8 +54,10 @@ services:
     network_mode: host
     environment:
       API_DOMAIN: ${API_DOMAIN}
+      WEB_DOMAIN: ${WEB_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./dist:/srv/web:ro
       - caddydata:/data
     depends_on:
       - api
