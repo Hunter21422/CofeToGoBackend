@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -43,6 +45,34 @@ class NotifyService:
         if reason:
             text += f"\nПричина: {reason}"
         self._add(order.user_id, NotificationType.ORDER_STATUS, text, order.id, "Открыть заказ", self._order_url(order), sms=sms)
+
+    async def order_completed(self, order: Order) -> None:
+        tips = (await SettingsService(self.session).get_all()).tips
+        if not (tips.enabled and tips.url and tips.after_order_message):
+            return
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        recent = await self.session.scalar(
+            select(func.count(NotificationLog.id)).where(
+                NotificationLog.user_id == order.user_id,
+                NotificationLog.created_at >= since,
+                NotificationLog.payload["kind"].astext == "tips",
+            )
+        )
+        if recent:
+            return
+        self.session.add(NotificationLog(
+            user_id=order.user_id, type=NotificationType.ORDER_STATUS, status=NotificationStatus.PENDING, order_id=order.id,
+            payload={
+                "kind": "tips",
+                "text": f"Спасибо, что заглянули! ☕\n{tips.text}",
+                "button_text": "Оставить на чай",
+                "button_url": tips.url,
+                "web_app": False,
+                "extra_text": "Оценить заказ",
+                "extra_url": self._order_url(order),
+                "sms": None,
+            },
+        ))
 
     async def new_order(self, order: Order) -> None:
         lines = []

@@ -84,6 +84,9 @@ class OrderRead(BaseSchema):
     status_history: list[OrderStatusHistoryRead]
     can_cancel: bool = False   # заполняется в сервисе
     can_review: bool = False
+    loyalty_stamps: int = 0
+    tips_url: str | None = None
+    tips_text: str | None = None
     created_at: datetime
 
 

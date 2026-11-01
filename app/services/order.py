@@ -17,6 +17,7 @@ from app.models.enums import (
 )
 from app.repositories import OrderRepository, SettingRepository, UserRepository
 from app.schemas.order import AdminOrderFilter, OrderCreate
+from app.schemas.setting import TipsSettings
 
 from .cart import CartService
 from .errors import Conflict, Forbidden, NotFound, ServiceError
@@ -24,6 +25,7 @@ from .loyalty import LoyaltyService
 from .notify import NotifyService
 from .payment import PaymentGateway, PaymentService
 from .promo import PromoService
+from .settings import SettingsService
 
 NEXT_STATUS = {
     OrderStatus.NEW: {OrderStatus.ACCEPTED},
@@ -151,6 +153,9 @@ class OrderService:
     def can_cancel(self, order: Order) -> bool:
         return order.status in USER_CAN_CANCEL
 
+    async def tips(self) -> TipsSettings:
+        return (await SettingsService(self.session).get_all()).tips
+
     def can_review(self, order: Order) -> bool:
         return order.status == OrderStatus.COMPLETED and order.review is None
 
@@ -239,6 +244,8 @@ class OrderService:
             await self.notify.order_status(order, "accepted")
         elif to == OrderStatus.READY:
             await self.notify.order_status(order, "ready")
+        elif to == OrderStatus.COMPLETED:
+            await self.notify.order_completed(order)
         await self.session.flush()
         return order
 

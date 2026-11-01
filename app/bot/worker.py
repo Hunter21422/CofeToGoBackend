@@ -23,7 +23,9 @@ log = logging.getLogger("bot.worker")
 
 async def deliver(bot: Bot, n: NotificationLog, user: User) -> int:
     p = n.payload or {}
-    markup = keyboard(button(p["button_text"], p["button_url"], p.get("web_app", True))) if p.get("button_text") and p.get("button_url") else None
+    main = button(p["button_text"], p["button_url"], p.get("web_app", True)) if p.get("button_text") and p.get("button_url") else None
+    extra = button(p["extra_text"], p["extra_url"]) if p.get("extra_text") and p.get("extra_url") else None
+    markup = keyboard(main, extra)
     parse_mode = "HTML" if n.type == NotificationType.BROADCAST else None
     if p.get("image_url"):
         msg = await bot.send_photo(user.tg_id, p["image_url"], caption=p["text"], reply_markup=markup, parse_mode=parse_mode)

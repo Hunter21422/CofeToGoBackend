@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Header, Query
@@ -16,6 +17,11 @@ async def to_read(service: OrderService, order, url: str | None = None) -> Order
     if url is None and order.status == OrderStatus.PENDING_PAYMENT:
         url = (await service.payments().get_order_payment(order.id)).confirmation_url
     out.payment_url = url
+    if order.status == OrderStatus.COMPLETED and order.completed_at and datetime.now(timezone.utc) - order.completed_at < timedelta(hours=12):
+        tips = await service.tips()
+        if tips.enabled and tips.url:
+            out.tips_url = tips.url
+            out.tips_text = tips.text
     return out
 @router.post("", response_model=OrderCreateOut, status_code=201)
 async def create_order(data: OrderCreate, session: SessionDep, redis: RedisDep, gateway: GatewayDep, user: CurrentUser, idempotency_key: Annotated[str | None, Header()] = None):

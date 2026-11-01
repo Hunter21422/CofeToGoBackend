@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LoyaltySettings(BaseModel):
@@ -30,13 +30,39 @@ class NotificationTexts(BaseModel):
         return v
 
 
+class TipsSettings(BaseModel):
+    enabled: bool = False
+    url: str | None = Field(None, max_length=500)
+    text: str = Field("Если всё понравилось, можно оставить баристе на чай 💛", min_length=1, max_length=200)
+    after_order_message: bool = True
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def https_only(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return None
+            if not v.startswith("https://"):
+                raise ValueError("Ссылка на чаевые должна начинаться с https://")
+        return v
+
+    @model_validator(mode="after")
+    def need_url(self) -> "TipsSettings":
+        if self.enabled and not self.url:
+            raise ValueError("Чтобы включить чаевые, укажите ссылку")
+        return self
+
+
 class SettingsOut(BaseModel):
     loyalty: LoyaltySettings
     orders: OrderSettings
     texts: NotificationTexts
+    tips: TipsSettings
 
 
 class SettingsUpdate(BaseModel):
     loyalty: LoyaltySettings | None = None
     orders: OrderSettings | None = None
     texts: NotificationTexts | None = None
+    tips: TipsSettings | None = None
