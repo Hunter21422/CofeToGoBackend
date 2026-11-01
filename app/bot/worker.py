@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.services import LoyaltyService, OrderService, PushService, StockService
 from app.services.auth import LogSender, default_sender
 
+from .backups import send_backups
 from .keyboards import button, keyboard
 
 log = logging.getLogger("bot.worker")
@@ -150,6 +151,7 @@ async def run_worker(bot: Bot) -> None:
                 await finish_broadcasts()
             if tick % 30 == 0:
                 await housekeeping()
+                await send_backups(bot)
         except Exception:
             log.exception("Ошибка в фоновой задаче")
             sent = 0
