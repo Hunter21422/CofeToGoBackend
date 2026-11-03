@@ -29,8 +29,30 @@ def short(text: str, limit: int = 400) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+TAGS = {"tasty": "вкусно", "fast": "быстро", "friendly": "приветливо", "slow": "долго", "cold": "остыло", "wrong_order": "перепутали"}
+
+
+def public_name(r: Review) -> str:
+    if r.publish_consent and r.user and r.user.first_name:
+        return r.user.first_name
+    return "Гость"
+
+
+def channel_text(r: Review) -> str:
+    lines = ["⭐" * r.rating]
+    if r.comment:
+        lines.append(f"«{short(r.comment, 900)}»")
+    elif r.tags:
+        lines.append(", ".join(TAGS.get(t, t) for t in r.tags).capitalize())
+    where = f", {r.location.name}" if r.location is not None else ""
+    lines.append(f"\n— {public_name(r)}{where}")
+    if r.reply:
+        lines.append(f"\n☕ Ответ кофейни: {short(r.reply, 400)}")
+    return "\n".join(lines)
+
+
 def review_block(r: Review) -> str:
-    name = (r.user.first_name if r.user and r.user.first_name else "") or "Гость"
+    name = public_name(r)
     head = f"{stars(r.rating)}  {name}"
     if r.location is not None:
         head += f" · {r.location.name}"

@@ -87,6 +87,8 @@ class OrderRead(BaseSchema):
     loyalty_stamps: int = 0
     tips_url: str | None = None
     tips_text: str | None = None
+    yandex_review_url: str | None = None
+    review_channel: bool = False
     created_at: datetime
 
 

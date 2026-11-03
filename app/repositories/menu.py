@@ -13,7 +13,7 @@ class CategoryRepository(BaseRepository[Category]):
     model = Category
 
     async def list_all(self) -> list[Category]:
-        stmt = select(Category).order_by(Category.sort_order, Category.id)
+        stmt = select(Category).where(Category.deleted_at.is_(None)).order_by(Category.sort_order, Category.id)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -25,7 +25,7 @@ class CategoryRepository(BaseRepository[Category]):
     async def menu_tree(self) -> list[Category]:
         stmt = (
             select(Category)
-            .where(Category.is_active.is_(True))
+            .where(Category.is_active.is_(True), Category.deleted_at.is_(None))
             .options(selectinload(Category.products).selectinload(Product.variants))
             .order_by(Category.sort_order, Category.id)
         )
@@ -67,7 +67,7 @@ class ProductRepository(BaseRepository[Product]):
         return result.scalar_one_or_none() is not None
 
     async def admin_page(self, f: ProductAdminFilter) -> tuple[list[Product], int]:
-        stmt = select(Product).options(*self._full_options()).order_by(Product.sort_order, Product.id)
+        stmt = select(Product).where(Product.deleted_at.is_(None)).options(*self._full_options()).order_by(Product.sort_order, Product.id)
         if f.category_id:
             stmt = stmt.where(Product.category_id == f.category_id)
         if f.is_active is not None:

@@ -6,6 +6,7 @@ from app.api.deps import Manager, SessionDep
 from app.models.enums import StaffRole
 from app.schemas.common import Page
 from app.schemas.profile import ReviewAdminRead, ReviewFilter, ReviewReplyIn
+from app.repositories import SettingRepository
 from app.services import ReviewService
 router=APIRouter(prefix="/admin/reviews", tags=["admin: отзывы"])
 @router.get("", response_model=Page[ReviewAdminRead])
@@ -17,3 +18,7 @@ async def list_reviews(f: Annotated[ReviewFilter, Query()], session: SessionDep,
 @router.post("/{review_id}/reply", response_model=ReviewAdminRead)
 async def reply_review(review_id: int, data: ReviewReplyIn, session: SessionDep, ctx: Manager):
     return await ReviewService(session).reply(review_id, ctx.user.id, data.reply)
+@router.post("/{review_id}/publish", response_model=ReviewAdminRead)
+async def publish_review(review_id: int, session: SessionDep, ctx: Manager):
+    channel = await SettingRepository(session).get_value("reviews.channel")
+    return await ReviewService(session).publish(review_id, channel)

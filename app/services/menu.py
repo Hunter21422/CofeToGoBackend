@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from zoneinfo import ZoneInfo
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Category, Product, ProductVariant
@@ -14,6 +15,7 @@ from .errors import Conflict, NotFound
 
 class MenuService:
     def __init__(self, session: AsyncSession):
+        self.session = session
         self.categories = CategoryRepository(session)
         self.products = ProductRepository(session)
         self.locations = LocationRepository(session)
@@ -21,14 +23,14 @@ class MenuService:
         self.favorites = FavoriteRepository(session)
     async def get_product(self,product_id:int)->Product:
         product=await self.products.full(product_id)
-        if product is None:
+        if product is None or product.deleted_at is not None:
             raise NotFound("Продукт не найден")
         return product
     async def list_categories(self)->list[Category]:
         return await self.categories.list_all()
     async def get_category(self,category_id:int)->Category:
         category=await self.categories.get(category_id)
-        if category is None:
+        if category is None or category.deleted_at is not None:
             raise NotFound("Категория не найдена")
         return category
     async def create_category(self, data: CategoryCreate) -> Category:
@@ -39,10 +41,19 @@ class MenuService:
         return category
     async def delete_category(self, category_id: int) -> None:
         category = await self.get_category(category_id)
-        has_products = await self.products.exists(Product.category_id == category_id)
+        has_products = await self.products.exists(Product.category_id == category_id, Product.deleted_at.is_(None))
         if has_products:
             raise Conflict("Сначала уберите товары из категории")
-        await self.categories.delete(category)
+        try:
+            async with self.session.begin_nested():
+                await self.session.delete(category)
+        except IntegrityError:
+            self.session.expire_all()
+            category = await self.get_category(category_id)
+            category.is_active = False
+            category.deleted_at = datetime.now(timezone.utc)
+            category.slug = f"{category.slug}-del{category.id}"[:64]
+            await self.session.flush()
     async def update_category(self, category_id: int, data: CategoryUpdate) -> Category:
         category = await self.get_category(category_id)
         if data.slug is not None and data.slug != category.slug:
@@ -55,7 +66,16 @@ class MenuService:
         await self.categories.reorder(ids)
     async def delete_product(self,product_id:int)->None:
         product=await self.get_product(product_id)
-        await self.products.delete(product)
+        try:
+            async with self.session.begin_nested():
+                await self.session.delete(product)
+        except IntegrityError:
+            self.session.expire_all()
+            product=await self.get_product(product_id)
+            product.is_active=False
+            product.deleted_at=datetime.now(timezone.utc)
+            product.slug=f"{product.slug}-del{product.id}"[:64]
+            await self.session.flush()
     async def reorder_product(self,ids:list[int])->None:
         await self.products.reorder(ids)
     async def admin_products(self,f:ProductAdminFilter)->tuple[list[Product],int]:

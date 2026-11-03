@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import time
+from datetime import datetime, time
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -25,6 +25,7 @@ class Category(IdMixin, TimestampMixin, Base):
     sort_order: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
     # Например «Завтраки» только до 12:00. NULL = весь день
+    deleted_at: Mapped[datetime | None]
     available_from: Mapped[time | None]
     available_to: Mapped[time | None]
 
@@ -51,6 +52,7 @@ class Product(IdMixin, TimestampMixin, Base):
 
     sort_order: Mapped[int] = mapped_column(default=0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    deleted_at: Mapped[datetime | None]
 
     category: Mapped[Category] = relationship(back_populates="products")
     variants: Mapped[list[ProductVariant]] = relationship(

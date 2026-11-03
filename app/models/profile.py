@@ -52,6 +52,10 @@ class Review(IdMixin, TimestampMixin, Base):
     replied_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     replied_at: Mapped[datetime | None]
 
+    publish_consent: Mapped[bool] = mapped_column(default=False)
+    published_at: Mapped[datetime | None]
+    channel_message_id: Mapped[int | None]
+
     order: Mapped[Order] = relationship(back_populates="review")
     user: Mapped[User] = relationship(foreign_keys=[user_id])
     location: Mapped[Location | None] = relationship()

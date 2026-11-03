@@ -61,6 +61,7 @@ class ReviewCreate(BaseModel):
     rating: Rating
     comment: str | None = Field(None, max_length=1000)
     tags: list[ReviewTag] = []
+    publish_consent: bool = False
 
 
 class ReviewRead(BaseSchema):
@@ -71,6 +72,8 @@ class ReviewRead(BaseSchema):
     tags: list[str]
     reply: str | None
     replied_at: datetime | None
+    publish_consent: bool = False
+    published_at: datetime | None = None
     created_at: datetime
 
 

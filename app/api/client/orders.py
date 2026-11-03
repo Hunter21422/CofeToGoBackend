@@ -22,6 +22,9 @@ async def to_read(service: OrderService, order, url: str | None = None) -> Order
         if tips.enabled and tips.url:
             out.tips_url = tips.url
             out.tips_text = tips.text
+    if order.status == OrderStatus.COMPLETED:
+        out.yandex_review_url = order.location.yandex_reviews_url if order.location else None
+        out.review_channel = bool(await service.settings.get_value("reviews.channel"))
     return out
 @router.post("", response_model=OrderCreateOut, status_code=201)
 async def create_order(data: OrderCreate, session: SessionDep, redis: RedisDep, gateway: GatewayDep, user: CurrentUser, idempotency_key: Annotated[str | None, Header()] = None):

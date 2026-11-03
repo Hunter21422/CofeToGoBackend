@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -58,12 +60,31 @@ class DealSettings(BaseModel):
     soda_enabled: bool = False
 
 
+class ReviewSettings(BaseModel):
+    channel: str | None = Field(None, max_length=64)
+
+    @field_validator("channel", mode="before")
+    @classmethod
+    def norm_channel(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip().removeprefix("https://").removeprefix("http://").removeprefix("t.me/").strip("/")
+            if not v:
+                return None
+            if v.lstrip("-").isdigit():
+                return v
+            v = "@" + v.lstrip("@")
+            if not re.fullmatch(r"@[A-Za-z0-9_]{5,32}", v):
+                raise ValueError("Канал укажите как @имя_канала")
+        return v
+
+
 class SettingsOut(BaseModel):
     loyalty: LoyaltySettings
     orders: OrderSettings
     texts: NotificationTexts
     tips: TipsSettings
     deal: DealSettings
+    reviews: ReviewSettings
 
 
 class SettingsUpdate(BaseModel):
@@ -72,3 +93,4 @@ class SettingsUpdate(BaseModel):
     texts: NotificationTexts | None = None
     tips: TipsSettings | None = None
     deal: DealSettings | None = None
+    reviews: ReviewSettings | None = None

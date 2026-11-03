@@ -54,6 +54,7 @@ class LocationRead(LocationShort):
     payment_methods: list[PaymentMethod]
     avg_prep_minutes: int
     hours: list[LocationHoursSchema]
+    yandex_reviews_url: str | None = None
 
     @field_validator("payment_methods")
     @classmethod
@@ -100,8 +101,20 @@ class LocationUpdate(BaseModel):
     max_orders_per_slot: int | None = Field(None, ge=1)
     is_active: bool | None = None
     accepts_orders: bool | None = None
+    yandex_reviews_url: str | None = Field(None, max_length=512)
 
     _enabled = field_validator("payment_methods")(classmethod(lambda cls, v: only_enabled(v)))
+
+    @field_validator("yandex_reviews_url", mode="before")
+    @classmethod
+    def https_url(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return None
+            if not v.startswith("https://"):
+                raise ValueError("Ссылка на Яндекс Карты должна начинаться с https://")
+        return v
 
 
 class LocationHoursUpdate(BaseModel):
