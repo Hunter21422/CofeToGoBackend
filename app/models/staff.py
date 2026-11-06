@@ -36,6 +36,7 @@ class Staff(IdMixin, TimestampMixin, Base):
     # Все токены, выданные раньше этого момента, недействительны («завершить все сеансы», сброс PIN)
     tokens_valid_after: Mapped[datetime | None]
     last_login_at: Mapped[datetime | None]
+    tips_url: Mapped[str | None] = mapped_column(String(500))
 
     user: Mapped[User] = relationship(back_populates="staff", foreign_keys=[user_id], lazy="selectin")
     location: Mapped[Location | None] = relationship(back_populates="staff")

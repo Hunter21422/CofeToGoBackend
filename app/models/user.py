@@ -43,6 +43,7 @@ class User(IdMixin, TimestampMixin, Base):
 
     # Настройки
     marketing_consent: Mapped[bool] = mapped_column(default=False)
+    pd_consent_at: Mapped[datetime | None]
     notifications_enabled: Mapped[bool] = mapped_column(default=True)
 
     # Модерация / активность

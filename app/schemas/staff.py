@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import StaffRole
 
@@ -24,6 +24,7 @@ class StaffRead(StaffShort):
     tg_linked: bool = False
     pin_locked_until: datetime | None
     last_login_at: datetime | None
+    tips_url: str | None = None
     created_at: datetime
 
 
@@ -48,6 +49,18 @@ class StaffUpdate(BaseModel):
     location_id: int | None = None
     is_active: bool | None = None
     phone: Phone | None = None
+    tips_url: str | None = Field(None, max_length=500)
+
+    @field_validator("tips_url", mode="before")
+    @classmethod
+    def https_only(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return None
+            if not v.startswith("https://"):
+                raise ValueError("Ссылка на чаевые должна начинаться с https://")
+        return v
 
 
 class AdminMe(BaseModel):

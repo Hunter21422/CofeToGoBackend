@@ -47,29 +47,46 @@ class NotifyService:
         self._add(order.user_id, NotificationType.ORDER_STATUS, text, order.id, "Открыть заказ", self._order_url(order), sms=sms)
 
     async def order_completed(self, order: Order) -> None:
-        tips = (await SettingsService(self.session).get_all()).tips
-        if not (tips.enabled and tips.url and tips.after_order_message):
+        all_settings = await SettingsService(self.session).get_all()
+        tips, reviews = all_settings.tips, all_settings.reviews
+        show_tips = bool(tips.enabled and tips.url and tips.after_order_message)
+        if not (show_tips or reviews.ask_after_order):
             return
         since = datetime.now(timezone.utc) - timedelta(hours=24)
         recent = await self.session.scalar(
             select(func.count(NotificationLog.id)).where(
                 NotificationLog.user_id == order.user_id,
                 NotificationLog.created_at >= since,
-                NotificationLog.payload["kind"].astext == "tips",
+                NotificationLog.payload["kind"].astext.in_(("tips", "after_order")),
             )
         )
         if recent:
             return
+        barista = order.accepted_by
+        name = barista.user.first_name if barista is not None and barista.user is not None else None
+        lines = ["Спасибо, что заглянули! ☕"]
+        if name:
+            lines.append(f"Ваш бариста сегодня — {name}.")
+        buttons = []
+        if reviews.ask_after_order:
+            lines.append("Как вам заказ? Оценка займёт пару секунд, а команда прочитает каждый отзыв.")
+            buttons.append({"text": "⭐ Оценить заказ", "url": self._order_url(order), "web_app": True})
+            yandex = order.location.yandex_reviews_url if order.location is not None else None
+            if yandex:
+                buttons.append({"text": "📍 Отзыв на Яндекс Картах", "url": yandex, "web_app": False})
+        if show_tips:
+            lines.append(tips.text)
+            personal = barista.tips_url if barista is not None and barista.is_active else None
+            buttons.append({"text": f"💛 На чай — {name}" if personal and name else "💛 Оставить на чай", "url": personal or tips.url, "web_app": False})
         self.session.add(NotificationLog(
             user_id=order.user_id, type=NotificationType.ORDER_STATUS, status=NotificationStatus.PENDING, order_id=order.id,
             payload={
-                "kind": "tips",
-                "text": f"Спасибо, что заглянули! ☕\n{tips.text}",
-                "button_text": "Оставить на чай",
-                "button_url": tips.url,
-                "web_app": False,
-                "extra_text": "Оценить заказ",
-                "extra_url": self._order_url(order),
+                "kind": "after_order",
+                "text": "\n".join(lines),
+                "button_text": buttons[0]["text"],
+                "button_url": buttons[0]["url"],
+                "web_app": buttons[0]["web_app"],
+                "buttons": buttons,
                 "sms": None,
             },
         ))

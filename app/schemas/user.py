@@ -26,6 +26,7 @@ class UserRead(UserShort):
     referral_code: str
     marketing_consent: bool
     notifications_enabled: bool
+    pd_consent_at: datetime | None = None
     role: StaffRole | None = None
     created_at: datetime
 
@@ -38,6 +39,7 @@ class UserUpdate(BaseModel):
     favorite_location_id: int | None = None
     marketing_consent: bool | None = None
     notifications_enabled: bool | None = None
+    pd_consent: Literal[True] | None = None
     language_code: Literal["ru", "en"] | None = None
 
     @field_validator("birth_date")

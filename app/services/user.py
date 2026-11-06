@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import User
@@ -21,6 +23,8 @@ class UserService:
     async def update_me(self, user_id: int, data: UserUpdate) -> User:
         user = await self.get_user(user_id)
         fields = data.model_dump(exclude_unset=True)
+        if fields.pop("pd_consent", None):
+            fields["pd_consent_at"] = user.pd_consent_at or datetime.now(timezone.utc)
         if "birth_date" in fields and user.birth_date is not None and fields["birth_date"] != user.birth_date:
             raise ServiceError("День рождения можно указать только один раз")
         if fields.get("favorite_location_id") is not None:

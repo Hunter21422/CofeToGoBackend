@@ -88,6 +88,8 @@ class OrderRead(BaseSchema):
     tips_url: str | None = None
     tips_text: str | None = None
     yandex_review_url: str | None = None
+    barista_name: str | None = None
+    tips_personal: bool = False
     review_channel: bool = False
     created_at: datetime
 

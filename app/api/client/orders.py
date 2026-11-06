@@ -17,10 +17,15 @@ async def to_read(service: OrderService, order, url: str | None = None) -> Order
     if url is None and order.status == OrderStatus.PENDING_PAYMENT:
         url = (await service.payments().get_order_payment(order.id)).confirmation_url
     out.payment_url = url
+    barista = order.accepted_by
+    if barista is not None and barista.user is not None:
+        out.barista_name = barista.user.first_name
     if order.status == OrderStatus.COMPLETED and order.completed_at and datetime.now(timezone.utc) - order.completed_at < timedelta(hours=12):
         tips = await service.tips()
         if tips.enabled and tips.url:
-            out.tips_url = tips.url
+            personal = barista.tips_url if barista is not None and barista.is_active else None
+            out.tips_url = personal or tips.url
+            out.tips_personal = bool(personal)
             out.tips_text = tips.text
     if order.status == OrderStatus.COMPLETED:
         out.yandex_review_url = order.location.yandex_reviews_url if order.location else None

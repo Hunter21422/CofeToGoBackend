@@ -60,8 +60,24 @@ class DealSettings(BaseModel):
     soda_enabled: bool = False
 
 
+class LegalSettings(BaseModel):
+    operator_name: str | None = Field(None, max_length=200)
+    ogrnip: str | None = Field(None, max_length=20)
+    inn: str | None = Field(None, max_length=12)
+    address: str | None = Field(None, max_length=300)
+    email: str | None = Field(None, max_length=120)
+    pickup_minutes: int = Field(30, ge=5, le=240)
+    docs_date: str | None = Field(None, max_length=20)
+
+    @field_validator("operator_name", "ogrnip", "inn", "address", "email", "docs_date", mode="before")
+    @classmethod
+    def blank(cls, v: object) -> object:
+        return (v.strip() or None) if isinstance(v, str) else v
+
+
 class ReviewSettings(BaseModel):
     channel: str | None = Field(None, max_length=64)
+    ask_after_order: bool = True
 
     @field_validator("channel", mode="before")
     @classmethod
@@ -85,6 +101,7 @@ class SettingsOut(BaseModel):
     tips: TipsSettings
     deal: DealSettings
     reviews: ReviewSettings
+    legal: LegalSettings
 
 
 class SettingsUpdate(BaseModel):
@@ -94,3 +111,4 @@ class SettingsUpdate(BaseModel):
     tips: TipsSettings | None = None
     deal: DealSettings | None = None
     reviews: ReviewSettings | None = None
+    legal: LegalSettings | None = None
