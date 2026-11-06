@@ -195,6 +195,18 @@ class StaffService:
         await self.revoke_sessions(staff_id)
         return staff
 
+    async def delete_staff(self, owner: Staff, staff_id: int) -> None:
+        staff = await self.get_staff(staff_id)
+        if staff.id == owner.id:
+            raise Conflict("Нельзя удалить самого себя")
+        if staff.role == StaffRole.OWNER and staff.is_active:
+            owners = [s for s in await self.staff.list_team() if s.role == StaffRole.OWNER and s.is_active]
+            if len(owners) <= 1:
+                raise Conflict("Нельзя удалить последнего владельца")
+        user_id = staff.user_id
+        await self.tokens.revoke_all(user_id)
+        await self.staff.delete(staff)
+
     async def revoke_sessions(self, staff_id: int) -> None:
         staff = await self.get_staff(staff_id)
         await self.staff.revoke_sessions(staff)

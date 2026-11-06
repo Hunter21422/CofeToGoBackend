@@ -13,6 +13,9 @@ async def add_staff(data: StaffCreate, session: SessionDep, ctx: Owner):
 @router.patch("/{staff_id}", response_model=StaffRead)
 async def update_staff(staff_id: int, data: StaffUpdate, session: SessionDep, ctx: Owner):
     return await StaffService(session).update_staff(ctx.staff, staff_id, data)
+@router.delete("/{staff_id}", status_code=204)
+async def delete_staff(staff_id: int, session: SessionDep, ctx: Owner):
+    await StaffService(session).delete_staff(ctx.staff, staff_id)
 @router.post("/{staff_id}/reset-pin", response_model=StaffRead)
 async def reset_pin(staff_id: int, session: SessionDep, ctx: Owner):
     return await StaffService(session).reset_pin(staff_id)
