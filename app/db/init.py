@@ -17,6 +17,8 @@ async def main() -> None:
         await conn.execute(text("ALTER TABLE reviews ADD COLUMN IF NOT EXISTS channel_message_id BIGINT"))
         await conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
         await conn.execute(text("ALTER TABLE categories ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ"))
+        await conn.execute(text("ALTER TABLE staff ADD COLUMN IF NOT EXISTS tips_url VARCHAR(500)"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pd_consent_at TIMESTAMPTZ"))
     async with SessionLocal() as session:
         await PushService(session).keys()
         await session.commit()

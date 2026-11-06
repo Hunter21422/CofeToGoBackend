@@ -38,6 +38,17 @@ def _new_code() -> str:
     return f"{secrets.randbelow(10_000):04d}"
 
 
+def _friendly(text: str | None) -> str | None:
+    if not text:
+        return None
+    low = text.lower()
+    if "баланс" in low or "денежные средства" in low:
+        return "Вход по номеру временно недоступен. Войдите через Telegram или попробуйте позже"
+    if "флуд" in low or "лимит" in low:
+        return "Слишком много попыток. Подождите 10 минут или войдите через Telegram"
+    return text
+
+
 class SmsRuSender:
     def __init__(self, api_id: str, mode: str = "call"):
         self.api_id = api_id
@@ -51,20 +62,20 @@ class SmsRuSender:
         item = (data.get("sms") or {}).get(phone.lstrip("+"), {})
         if data.get("status") != "OK" or item.get("status") != "OK":
             log.warning("sms.ru: %s", data)
-            raise ServiceError(item.get("status_text") or "Не получилось отправить SMS, попробуйте позже")
+            raise ServiceError(_friendly(item.get("status_text")) or "Не получилось отправить SMS, попробуйте позже")
 
     async def send_code(self, phone: str, ip: str | None) -> str:
         if self.channel == "sms":
             code = _new_code()
             await self.send(phone, f"{code} — код для входа в «{get_settings().app_name}»")
             return code
-        params = {"api_id": self.api_id, "phone": phone.lstrip("+"), "ip": ip or "-1", "json": 1}
+        params = {"api_id": self.api_id, "phone": phone.lstrip("+"), "ip": "-1", "json": 1}
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get("https://sms.ru/code/call", params=params)
         data = r.json() if r.status_code == 200 else {}
         if data.get("status") != "OK" or not data.get("code"):
             log.warning("sms.ru call: %s ip=%s", data, ip)
-            raise ServiceError(data.get("status_text") or "Не получилось позвонить, попробуйте через минуту")
+            raise ServiceError(_friendly(data.get("status_text")) or "Не получилось позвонить, попробуйте через минуту")
         return str(data["code"])[-4:]
 
 
